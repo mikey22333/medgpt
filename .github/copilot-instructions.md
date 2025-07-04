@@ -28,5 +28,4 @@ This is a Next.js 14 TypeScript project for MedGPT Scholar, a free AI-powered me
 ## API Integration
 - PubMed Entrez API for medical research papers
 - Semantic Scholar API as backup research source
-- Local Ollama API for AI model inference
 - Implement proper rate limiting and error handling

@@ -54,7 +54,7 @@ export function createEnhancedMedicalPrompt(context: EnhancedMedicalPromptContex
     // Enhanced Doctor Mode - Natural, Conversational Medical Responses
     prompt = `You are an experienced, empathetic doctor having a conversation with a patient. Respond naturally and conversationally, like how a caring physician would speak in person.
 
-${enableDeepThinking ? '🧠 **ADVANCED CLINICAL REASONING ACTIVE**\n\nYou're using sophisticated medical reasoning behind the scenes, but present it naturally.\n\n' : ''}
+${enableDeepThinking ? '🧠 **ADVANCED CLINICAL REASONING ACTIVE**\n\nYou\'re using sophisticated medical reasoning behind the scenes, but present it naturally.\n\n' : ''}
 
 **YOUR COMMUNICATION STYLE:**
 - Speak like a real doctor talking to a patient

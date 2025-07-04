@@ -218,3 +218,65 @@ BEGIN
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Chat Messages table for conversation management
+CREATE TABLE IF NOT EXISTS public.chat_messages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  session_id UUID NOT NULL,
+  mode VARCHAR(50) NOT NULL CHECK (mode IN ('research', 'doctor', 'source-finder')),
+  role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant')),
+  content TEXT NOT NULL,
+  citations JSONB,
+  confidence_score INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+-- Create indexes for chat_messages
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON public.chat_messages(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON public.chat_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON public.chat_messages(created_at);
+
+-- Enable RLS for chat_messages
+ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies for chat_messages
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'chat_messages' 
+        AND policyname = 'Users can view their own chat messages'
+    ) THEN
+        CREATE POLICY "Users can view their own chat messages" ON public.chat_messages
+            FOR SELECT USING (auth.uid() = user_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'chat_messages' 
+        AND policyname = 'Users can insert their own chat messages'
+    ) THEN
+        CREATE POLICY "Users can insert their own chat messages" ON public.chat_messages
+            FOR INSERT WITH CHECK (auth.uid() = user_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'chat_messages' 
+        AND policyname = 'Users can update their own chat messages'
+    ) THEN
+        CREATE POLICY "Users can update their own chat messages" ON public.chat_messages
+            FOR UPDATE USING (auth.uid() = user_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'chat_messages' 
+        AND policyname = 'Users can delete their own chat messages'
+    ) THEN
+        CREATE POLICY "Users can delete their own chat messages" ON public.chat_messages
+            FOR DELETE USING (auth.uid() = user_id);
+    END IF;
+END $$;

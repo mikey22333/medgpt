@@ -22,6 +22,7 @@ export interface SemanticScholarPaper {
   year: number;
   doi?: string;
   url?: string;
+  citationCount?: number;
 }
 
 export interface EuropePMCArticle {
@@ -60,7 +61,7 @@ export interface CrossRefPaper {
 export interface ResearchQuery {
   query: string;
   maxResults: number;
-  source: 'pubmed' | 'semantic-scholar' | 'europepmc' | 'fda' | 'crossref' | 'all';
+  source: 'pubmed' | 'semantic-scholar' | 'europepmc' | 'fda' | 'crossref' | 'openalex' | 'all';
 }
 
 export interface ResearchResponse {
@@ -78,7 +79,7 @@ export interface ResearchPaper {
   journal: string;
   year: string;
   url: string;
-  source: 'PubMed' | 'Semantic Scholar' | 'Europe PMC' | 'FDA Drug Labels' | 'FDA FAERS' | 'FDA Recalls' | 'CrossRef' | 'Fallback';
+  source: 'PubMed' | 'Semantic Scholar' | 'Europe PMC' | 'FDA Drug Labels' | 'FDA FAERS' | 'FDA Recalls' | 'CrossRef' | 'OpenAlex' | 'Fallback';
   relevanceScore?: number;
   doi?: string;
   citationCount?: number;

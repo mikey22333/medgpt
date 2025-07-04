@@ -76,9 +76,115 @@
 }
 
 @layer components {
-  /* Markdown content styling */
+  /* Essential overflow prevention */
+  .chat-container {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+
+  .chat-content {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
+  }
+
+  .chat-bubble {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
+  }
+
+  .citation-card {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-width: 100%;
+  }
+
+  /* Fix for long URLs */
+  .chat-bubble a,
+  .citation-card a {
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
+  /* Fix for tables in chat */
+  .chat-container table {
+    width: 100%;
+    max-width: 100%;
+    table-layout: fixed;
+    overflow-x: auto;
+  }
+
+  .chat-container table td,
+  .chat-container table th {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  /* Mobile responsive */
+  @media (max-width: 768px) {
+    .chat-container {
+      padding: 0.5rem;
+    }
+    
+    .chat-content {
+      font-size: 0.875rem;
+    }
+  }
+
+  /* Line clamp utilities */
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+  
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+  
+  /* Professional styling for prose content */
   .prose {
-    @apply text-foreground;
+    max-width: none;
+  }
+  
+  .prose p {
+    margin-bottom: 0.75rem;
+  }
+  
+  .prose p:last-child {
+    margin-bottom: 0;
+  }
+  
+  .prose ul {
+    margin-bottom: 0.75rem;
+  }
+  
+  .prose ol {
+    margin-bottom: 0.75rem;
+  }
+  
+  .prose li {
+    margin-bottom: 0.25rem;
   }
   
   .prose h1,
@@ -87,108 +193,53 @@
   .prose h4,
   .prose h5,
   .prose h6 {
-    @apply text-foreground font-semibold;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
   }
   
-  .prose p {
-    @apply text-foreground;
+  .prose table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0.75rem;
   }
   
-  .prose ul,
-  .prose ol {
-    @apply text-foreground;
+  .prose th,
+  .prose td {
+    padding: 0.5rem;
+    border: 1px solid #e5e7eb;
+    text-align: left;
   }
   
-  .prose strong {
-    @apply text-foreground font-semibold;
-  }
-  
-  .prose code {
-    @apply bg-secondary text-foreground px-1 py-0.5 rounded text-sm;
+  .prose th {
+    background-color: #f9fafb;
+    font-weight: 600;
   }
   
   .prose blockquote {
-    @apply border-l-4 border-primary pl-4 text-muted-foreground;
-  }
-
-  /* Medical UI Enhancements */
-  .medical-card {
-    border: 1px solid hsl(var(--border));
-    border-left: 4px solid hsl(var(--medical-primary));
-    background: hsl(var(--card));
-    transition: all 0.2s ease;
-  }
-
-  .medical-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    border-left-color: hsl(var(--medical-accent));
-  }
-
-  .confidence-bar {
-    height: 4px;
-    border-radius: 2px;
-    overflow: hidden;
-    background: hsl(var(--muted));
-  }
-
-  .confidence-fill {
-    height: 100%;
-    transition: width 0.3s ease;
-  }
-
-  .confidence-high { background: hsl(var(--medical-success)); }
-  .confidence-moderate { background: hsl(var(--medical-warning)); }
-  .confidence-low { background: hsl(var(--medical-danger)); }
-
-  /* Enhanced badge styles */
-  .badge-rct { 
-    background: hsl(142 76% 36% / 0.1); 
-    color: hsl(142 76% 36%); 
-    border: 1px solid hsl(142 76% 36% / 0.2);
+    border-left: 4px solid #3b82f6;
+    padding-left: 1rem;
+    margin-bottom: 0.75rem;
+    font-style: italic;
   }
   
-  .badge-meta-analysis { 
-    background: hsl(270 76% 46% / 0.1); 
-    color: hsl(270 76% 46%); 
-    border: 1px solid hsl(270 76% 46% / 0.2);
+  .prose code {
+    background-color: #f3f4f6;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875em;
   }
   
-  .badge-guideline { 
-    background: hsl(210 79% 46% / 0.1); 
-    color: hsl(210 79% 46%); 
-    border: 1px solid hsl(210 79% 46% / 0.2);
+  .prose pre {
+    background-color: #f3f4f6;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin-bottom: 0.75rem;
   }
   
-  .badge-fda { 
-    background: hsl(348 83% 47% / 0.1); 
-    color: hsl(348 83% 47%); 
-    border: 1px solid hsl(348 83% 47% / 0.2);
-  }
-
-  /* Medical shimmer loading effect */
-  .medical-shimmer {
-    background: linear-gradient(
-      90deg,
-      hsl(var(--muted)) 0%,
-      hsl(var(--muted-foreground) / 0.1) 50%,
-      hsl(var(--muted)) 100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-  }
-
-  @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
-  }
-
-  /* Pulse animation for confidence indicators */
-  .confidence-pulse {
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+  .prose pre code {
+    background-color: transparent;
+    padding: 0;
   }
 }

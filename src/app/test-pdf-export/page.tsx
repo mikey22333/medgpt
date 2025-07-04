@@ -21,7 +21,6 @@ export default function TestPDFExport() {
         query: 'test research query',
         papers: [
           {
-            id: '1',
             title: 'Sample Research Paper',
             authors: ['Author One', 'Author Two'],
             journal: 'Journal of Testing',
@@ -66,10 +65,10 @@ export default function TestPDFExport() {
       const options: PDFExportOptions = {
         mode: 'source',
         title: 'Test Source Export',
+        content: 'This is a test AI response from Source Finder mode. It should include detailed information about medical research findings and provide comprehensive analysis of the requested query. This content should now appear in the exported PDF when using Source Finder mode, demonstrating that the content export functionality is working correctly.',
         query: 'test source query',
         papers: [
           {
-            id: '1',
             title: 'First Sample Paper',
             authors: ['Author One', 'Author Two'],
             journal: 'Journal of Testing',
@@ -83,7 +82,6 @@ export default function TestPDFExport() {
             isOpenAccess: true
           },
           {
-            id: '2',
             title: 'Second Sample Paper with a Much Longer Title to Test Text Wrapping and Table Formatting',
             authors: ['Author Three', 'Author Four', 'Author Five'],
             journal: 'International Journal of Testing',

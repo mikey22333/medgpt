@@ -19,7 +19,9 @@ import {
   Clock,
   ArrowRight,
   CheckCircle,
-  XCircle
+  XCircle,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 // import { useStripeCheckout } from '@/hooks/useStripeCheckout';
@@ -151,6 +153,26 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDeleteQuery = async (queryId: string) => {
+    if (!confirm('Delete this conversation? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      await supabase
+        .from('user_queries')
+        .delete()
+        .eq('id', queryId)
+        .eq('user_id', user?.id);
+      
+      // Reload recent queries to reflect deletion
+      loadUserData();
+    } catch (error) {
+      console.error('Error deleting query:', error);
+      alert('Failed to delete conversation. Please try again.');
+    }
+  };
+
   const truncateText = (text: string, maxLength: number = 80) => {
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   };
@@ -159,36 +181,36 @@ export default function DashboardPage() {
     <ProtectedRoute>
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
         {/* Header */}
-        <div className="border-b bg-white/80 backdrop-blur-sm p-4">
-          <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        <div className="border-b bg-white/80 backdrop-blur-sm p-3 md:p-4">
+          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+            <div className="flex items-center gap-2 md:gap-3 w-full sm:w-auto">
               <Button
-                onClick={() => router.push('/')}
+                onClick={() => router.push('/chat')}
                 variant="outline"
                 size="sm"
-                className="flex items-center gap-2"
+                className="flex items-center gap-1 md:gap-2 text-xs md:text-sm"
               >
                 ← Back to Chat
               </Button>
-              <h1 className="text-lg font-semibold text-gray-900">Settings & Pricing</h1>
+              <h1 className="text-base md:text-lg font-semibold text-gray-900 truncate">Settings & Pricing</h1>
             </div>
             
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-600">{user?.email}</span>
+            <div className="flex items-center gap-2 md:gap-3 w-full sm:w-auto justify-end">
+              <span className="text-xs md:text-sm text-gray-600 truncate max-w-[150px] md:max-w-none">{user?.email}</span>
               <Button
                 onClick={handleSignOut}
                 variant="outline"
                 size="sm"
-                className="flex items-center gap-2"
+                className="flex items-center gap-1 md:gap-2 text-xs md:text-sm"
               >
                 <LogOut className="h-3 w-3" />
-                Sign Out
+                <span className="hidden sm:inline">Sign Out</span>
               </Button>
             </div>
           </div>
         </div>
 
-        <div className="max-w-4xl mx-auto p-6 space-y-6">
+        <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-4 md:space-y-6">
           {/* Payment Status Alert */}
           {paymentStatus === 'success' && (
             <Card className="p-4 bg-green-50 border-green-200">
@@ -227,16 +249,16 @@ export default function DashboardPage() {
           )}
 
           {/* Subscription Card */}
-          <Card className="p-6 bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
+          <Card className="p-4 md:p-6 bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
                 <div className="flex items-center gap-2">
                   <Crown className={`h-5 w-5 ${userProfile.subscription_tier === 'pro' ? 'text-yellow-500' : 'text-gray-400'}`} />
-                  <h3 className="text-lg font-semibold text-gray-900">
+                  <h3 className="text-base md:text-lg font-semibold text-gray-900">
                     {userProfile.subscription_tier === 'pro' ? '💎 Pro Plan' : '🧪 Starter Plan (Free)'}
                   </h3>
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-xs md:text-sm text-gray-600">
                   {userProfile.subscription_tier === 'free' 
                     ? `${userProfile.queries_used} / ${userProfile.query_limit} questions today`
                     : 'Unlimited questions'
@@ -244,20 +266,22 @@ export default function DashboardPage() {
                 </div>
               </div>
               
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 md:gap-3 w-full sm:w-auto justify-end">
                 {userProfile.subscription_tier === 'free' && (
                   <Button 
                     onClick={handleUpgrade}
                     disabled={checkoutLoading}
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
+                    size="sm"
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 text-xs md:text-sm"
                   >
-                    <Crown className="h-4 w-4 mr-2" />
+                    <Crown className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
                     {checkoutLoading ? 'Loading...' : 'Upgrade to Pro'}
                   </Button>
                 )}
-                <Button variant="outline" size="sm">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Settings
+                <Button variant="outline" size="sm" className="text-xs md:text-sm">
+                  <Settings className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                  <span className="hidden sm:inline">Settings</span>
+                  <span className="sm:hidden">⚙️</span>
                 </Button>
               </div>
             </div>
@@ -322,17 +346,17 @@ export default function DashboardPage() {
           </Card>
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             <Card 
-              className="p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white cursor-pointer hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-lg border-0"
-              onClick={() => router.push('/')}
+              className="p-3 md:p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white cursor-pointer hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-lg border-0"
+              onClick={() => router.push('/chat')}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <MessageSquare className="h-6 w-6" />
-                  <div>
-                    <h3 className="font-semibold">Start New Chat</h3>
-                    <p className="text-blue-100 text-sm">
+                <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+                  <MessageSquare className="h-5 w-5 md:h-6 md:w-6 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-sm md:text-base">Start New Chat</h3>
+                    <p className="text-blue-100 text-xs md:text-sm truncate">
                       {userProfile.subscription_tier === 'free' 
                         ? `${userProfile.query_limit - userProfile.queries_used} questions left today`
                         : 'Unlimited questions available'
@@ -340,22 +364,22 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 </div>
-                <ArrowRight className="h-5 w-5" />
+                <ArrowRight className="h-4 w-4 md:h-5 md:w-5 flex-shrink-0" />
               </div>
             </Card>
 
             <Card 
-              className="p-4 bg-gradient-to-br from-purple-600 to-purple-700 text-white cursor-pointer hover:from-purple-700 hover:to-purple-800 transition-all duration-200 shadow-lg border-0"
+              className="p-3 md:p-4 bg-gradient-to-br from-purple-600 to-purple-700 text-white cursor-pointer hover:from-purple-700 hover:to-purple-800 transition-all duration-200 shadow-lg border-0"
               onClick={userProfile.subscription_tier === 'free' ? handleUpgrade : undefined}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Crown className="h-6 w-6" />
-                  <div>
-                    <h3 className="font-semibold">
+                <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
+                  <Crown className="h-5 w-5 md:h-6 md:w-6 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-sm md:text-base">
                       {userProfile.subscription_tier === 'free' ? 'Upgrade to Pro' : 'Pro Features'}
                     </h3>
-                    <p className="text-purple-100 text-sm">
+                    <p className="text-purple-100 text-xs md:text-sm truncate">
                       {userProfile.subscription_tier === 'free' 
                         ? (currency === 'INR' ? '₹299/month' : '$5.99/month')
                         : 'All premium features active'
@@ -363,17 +387,17 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 </div>
-                <ArrowRight className="h-5 w-5" />
+                <ArrowRight className="h-4 w-4 md:h-5 md:w-5 flex-shrink-0" />
               </div>
             </Card>
           </div>
 
           {/* Recent Chat History */}
-          <Card className="p-6 bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Recent Conversations</h3>
+          <Card className="p-4 md:p-6 bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4">
+              <h3 className="text-base md:text-lg font-semibold text-gray-900">Recent Conversations</h3>
               {recentQueries.length > 0 && (
-                <Button variant="outline" size="sm" onClick={() => router.push('/')}>
+                <Button variant="outline" size="sm" onClick={() => router.push('/chat')} className="text-xs md:text-sm">
                   View All Chats
                 </Button>
               )}
@@ -385,14 +409,14 @@ export default function DashboardPage() {
                 <p className="text-sm">Loading chat history...</p>
               </div>
             ) : recentQueries.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-2 md:space-y-3">
                 {recentQueries.map((query) => (
-                  <div key={query.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => router.push('/')}>
-                    <div className="mt-1">
+                  <div key={query.id} className="relative flex items-start gap-2 md:gap-3 p-2 md:p-3 rounded-lg hover:bg-gray-50 transition-colors group">
+                    <div className="mt-1 flex-shrink-0">
                       {getModeIcon(query.mode)}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => router.push('/chat')}>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
                         <span className="text-xs font-medium text-gray-500 uppercase">
                           {getModeLabel(query.mode)}
                         </span>
@@ -401,14 +425,42 @@ export default function DashboardPage() {
                           {formatDate(query.created_at)}
                         </div>
                       </div>
-                      <p className="text-sm text-gray-900 font-medium">
-                        {truncateText(query.query_text)}
+                      <p className="text-xs md:text-sm text-gray-900 font-medium line-clamp-2">
+                        {truncateText(query.query_text, 100)}
                       </p>
                       {query.response_text && (
-                        <p className="text-xs text-gray-600 mt-1">
-                          {truncateText(query.response_text, 120)}
+                        <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                          {truncateText(query.response_text, 100)}
                         </p>
                       )}
+                    </div>
+                    
+                    {/* Always visible action buttons */}
+                    <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push('/chat');
+                        }}
+                        className="p-1 h-8 w-8 text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-colors border border-transparent hover:border-blue-200"
+                        title="Edit conversation"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteQuery(query.id);
+                        }}
+                        className="p-1 h-8 w-8 text-gray-600 hover:text-red-600 hover:bg-red-50 transition-colors border border-transparent hover:border-red-200"
+                        title="Delete conversation"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 ))}

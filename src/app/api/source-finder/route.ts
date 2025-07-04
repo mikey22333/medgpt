@@ -14,7 +14,67 @@ const togetherAI = new TogetherAIClient(process.env.TOGETHER_API_KEY || "");
 
 export async function POST(request: NextRequest) {
   try {
-    const { textSnippet, conversationHistory = [] } = await request.json();
+    const body = await request.json();
+    
+    // Handle chat-style requests
+    if (body.sessionId && body.mode) {
+      const { query, sessionId, mode } = body;
+      
+      if (!query || query.trim().length === 0) {
+        return NextResponse.json(
+          { error: "Query is required" },
+          { status: 400 }
+        );
+      }
+
+      // For now, provide a simple source finder response
+      const response = `I'm your source finder assistant! You asked: "${query}"
+
+I can help you find and verify sources for medical claims and research. Here's how I can assist:
+
+**Source Finding Services:**
+📚 **Find Research Papers** - Locate peer-reviewed studies relevant to your topic
+🔍 **Verify Claims** - Check if statements are supported by current evidence
+📊 **Assess Source Quality** - Evaluate the reliability and impact of research
+🏥 **Find Guidelines** - Locate clinical practice guidelines and consensus statements
+
+**Search Strategy:**
+1. I'll search across multiple medical databases (PubMed, Semantic Scholar, etc.)
+2. Focus on peer-reviewed, high-impact journals
+3. Prioritize recent publications and systematic reviews
+4. Check for conflicting evidence or limitations
+
+**To get started, you can:**
+- Share a specific medical claim you want me to verify
+- Ask me to find sources on a particular topic
+- Request help evaluating the quality of existing sources
+
+**Medical Disclaimer:** Source finding is for educational and research purposes. Always consult healthcare professionals for medical decisions.
+
+What would you like me to help you find sources for?`;
+
+      return NextResponse.json({
+        response,
+        citations: [],
+        reasoningSteps: [
+          {
+            step: 1,
+            description: "Received source finding request",
+            content: `Processing query: "${query}"`
+          },
+          {
+            step: 2,
+            description: "Provided source finding guidance",
+            content: "Generated educational response about source finding methodology"
+          }
+        ],
+        sessionId,
+        mode
+      });
+    }
+
+    // Handle original source-finder requests
+    const { textSnippet, conversationHistory = [] } = body;
 
     if (!textSnippet?.trim()) {
       return NextResponse.json(

@@ -21,18 +21,16 @@ export const STRIPE_CONFIG = {
     },
     PRO: {
       name: '💎 Pro Plan',
-      price_usd: '$5.99/month',
+      price_usd: '$19/month',
       price_inr: '₹299/month',
       queries_per_day: 'unlimited',
       citations_per_response: '10+',
       features: [
-        'Unlimited AI chats',
-        '10+ citations per response', 
-        'Full Research Mode access',
-        'Save chat history',
-        'Download PDF responses',
-        'Source Finder Intelligence',
-        'Priority speed'
+        'Unlimited queries',
+        'Advanced GRADE analysis',
+        'Multi-database search',
+        'Unlimited PDF export',
+        'Upgraded AI model'
       ]
     }
   }

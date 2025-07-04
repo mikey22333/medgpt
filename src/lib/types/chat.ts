@@ -7,6 +7,7 @@ export interface Message {
   reasoningSteps?: ReasoningStep[];
   multiAgentResult?: any; // From Phase 3 - Multi-agent analysis results
   sessionId?: string; // For real-time reasoning sessions
+  confidence?: number; // Overall confidence score for the message
 }
 
 export interface ReasoningStep {

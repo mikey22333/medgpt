@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { generateResearchPDF, generateSourcePDF, downloadPDF } from '@/lib/utils/pdf-export';
-import { type ResearchPaper, type GRADEConfidence } from '@/lib/types/research';
+import { type ResearchPaper } from '@/lib/types/research';
+import { type GRADEConfidence } from '@/lib/research/grade';
 
 export type ExportMode = 'research' | 'source';
 
@@ -33,6 +34,7 @@ export interface ResearchExportOptions extends BaseExportOptions {
 
 export interface SourceExportOptions extends BaseExportOptions {
   mode: 'source';
+  content?: string;
   appliedFilters?: Record<string, string>;
 }
 
@@ -82,6 +84,7 @@ export function usePDFExport() {
         pdfBlob = await generateSourcePDF({
           mode: 'source',
           title,
+          content: sourceOpts.content || '',
           papers,
           includeAbstracts,
           includeSourceInfo,
@@ -134,6 +137,7 @@ export function useResearchPDFExport() {
     includeAbstracts?: boolean;
   }) => {
     return exportToPDF({
+      mode: 'research',
       title: `Research: ${query}`,
       content,
       papers,
@@ -165,6 +169,7 @@ export function useSourcePDFExport() {
     includeAbstracts?: boolean;
   }) => {
     return exportToPDF({
+      mode: 'source',
       title: `${source} Results: ${query}`,
       papers,
       includeAbstracts,

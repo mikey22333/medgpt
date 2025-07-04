@@ -48,7 +48,10 @@ export function PDFExportButton({
     if (!isMounted) return;
     
     try {
+      // Default to research mode if content is provided, otherwise source mode
+      const mode = content ? 'research' : 'source';
       const success = await exportToPDF({
+        mode: mode as 'research' | 'source',
         title,
         content,
         papers,
@@ -124,6 +127,7 @@ export function SourcePDFButton({
     <PDFExportButton
       title={`${source} Results: ${query}`}
       papers={papers}
+      content="" // Empty content forces source mode
       {...props}
     >
       <Download className="h-4 w-4" />
