@@ -6,17 +6,19 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "./MessageBubble";
 import { type Message } from "@/lib/types/chat";
-import { Send, Bot, User, Sparkles, FlaskConical, UserCheck, Search } from "lucide-react";
+import { Send, Bot, User, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useQueryLimit } from "@/hooks/useQueryLimit";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 
 interface ChatInterfaceProps {
   mode?: 'research' | 'doctor' | 'source-finder';
-  sessionId?: string;
+  sessionId?: string | null;
   onSessionChange?: (sessionId: string) => void;
   hideHeader?: boolean;
   onModeChange?: (mode: 'research' | 'doctor' | 'source-finder') => void;
+  onMessageSent?: () => void; // Add callback for when message is sent
 }
 
 export function ChatInterface({ 
@@ -24,7 +26,8 @@ export function ChatInterface({
   sessionId,
   onSessionChange,
   hideHeader = false,
-  onModeChange
+  onModeChange,
+  onMessageSent
 }: ChatInterfaceProps) {
   const { user } = useAuth();
   const { 
@@ -40,42 +43,169 @@ export function ChatInterface({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const isSendingMessage = useRef(false);
+  const supabase = createClient();
 
-  // Load messages from localStorage on mount
+  // Use a stable session ID - either from props or generate once
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => {
+    if (sessionId) return sessionId;
+    return crypto.randomUUID();
+  });
+
+  // Track if this is a new session that hasn't been loaded yet
+  const [hasLoadedSession, setHasLoadedSession] = useState(false);
+  const [isInternalSessionChange, setIsInternalSessionChange] = useState(false);
+
+  // Handle session ID changes - including when starting a new chat (sessionId becomes null/undefined)
   useEffect(() => {
-    if (sessionId) {
-      const savedMessages = localStorage.getItem(`chat-${sessionId}`);
-      if (savedMessages) {
-        try {
-          const parsed = JSON.parse(savedMessages);
-          setMessages(parsed.map((msg: any) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp)
-          })));
-        } catch (error) {
-          console.error('Error loading messages:', error);
+    if (sessionId === null || sessionId === undefined) {
+      // Starting a new chat - clear everything and generate new session
+      console.log('Starting new chat - clearing session from', currentSessionId);
+      setIsInternalSessionChange(true);
+      const newSessionId = crypto.randomUUID();
+      setCurrentSessionId(newSessionId);
+      setMessages([]);
+      setHasLoadedSession(false);
+      
+      // Reset internal change flag after state updates
+      setTimeout(() => setIsInternalSessionChange(false), 0);
+    } else if (sessionId && sessionId !== currentSessionId) {
+      // Switching to an existing conversation
+      console.log('Session ID changed from', currentSessionId, 'to', sessionId);
+      setIsInternalSessionChange(false);
+      setCurrentSessionId(sessionId);
+      setHasLoadedSession(false); // Reset loaded state for new session
+    }
+  }, [sessionId]); // Keep only sessionId as dependency
+
+  // Notify parent about session ID (but not when we internally generate new sessions)
+  useEffect(() => {
+    if (onSessionChange && currentSessionId && !isInternalSessionChange) {
+      // Use a timeout to prevent immediate state updates that could cause loops
+      const timeoutId = setTimeout(() => {
+        onSessionChange(currentSessionId);
+      }, 0);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentSessionId, onSessionChange, isInternalSessionChange]);
+
+  // Load messages from database on mount
+  useEffect(() => {
+    let isMounted = true; // Prevent state updates if component unmounts
+    
+    const loadConversation = async () => {
+      if (!currentSessionId || !user || hasLoadedSession) return;
+      
+      try {
+        console.log('Loading conversation for session:', currentSessionId);
+        setIsLoadingConversation(true);
+        
+        // First try to load from database
+        const response = await fetch(`/api/conversations/${currentSessionId}`, {
+          headers: {
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.messages && data.messages.length > 0 && isMounted) {
+            console.log(`Loaded ${data.messages.length} messages from database for session ${currentSessionId}`);
+            setMessages(data.messages.map((msg: any) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp)
+            })));
+            setHasLoadedSession(true);
+            return; // Exit early if we loaded from database
+          }
+        }
+        
+        // Fallback to localStorage if database load fails or is empty
+        const savedMessages = localStorage.getItem(`chat-${currentSessionId}`);
+        if (savedMessages && isMounted) {
+          try {
+            const parsed = JSON.parse(savedMessages);
+            console.log(`Loaded ${parsed.length} messages from localStorage for session ${currentSessionId}`);
+            setMessages(parsed.map((msg: any) => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp)
+            })));
+          } catch (error) {
+            console.error('Error parsing localStorage messages:', error);
+            setMessages([]);
+          }
+        } else if (isMounted) {
+          // No messages found, start fresh
+          console.log('No messages found for session', currentSessionId);
+          setMessages([]);
+        }
+        
+        if (isMounted) {
+          setHasLoadedSession(true);
+        }
+      } catch (error) {
+        console.error('Error loading conversation:', error);
+        
+        if (isMounted) {
+          // Fallback to localStorage
+          const savedMessages = localStorage.getItem(`chat-${currentSessionId}`);
+          if (savedMessages) {
+            try {
+              const parsed = JSON.parse(savedMessages);
+              setMessages(parsed.map((msg: any) => ({
+                ...msg,
+                timestamp: new Date(msg.timestamp)
+              })));
+            } catch (error) {
+              console.error('Error parsing localStorage messages:', error);
+              setMessages([]);
+            }
+          } else {
+            setMessages([]);
+          }
+          setHasLoadedSession(true);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingConversation(false);
         }
       }
-    }
-  }, [sessionId]);
+    };
 
-  // Save messages to localStorage when they change
+    loadConversation();
+    
+    return () => {
+      isMounted = false; // Cleanup flag
+    };
+  }, [currentSessionId, user]); // REMOVED hasLoadedSession dependency to break the loop
+
+  // Save messages to localStorage as backup when they change
   useEffect(() => {
-    if (sessionId && messages.length > 0) {
-      localStorage.setItem(`chat-${sessionId}`, JSON.stringify(messages));
+    if (currentSessionId && messages.length > 0) {
+      localStorage.setItem(`chat-${currentSessionId}`, JSON.stringify(messages));
     }
-  }, [messages, sessionId]);
+  }, [messages, currentSessionId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+
+    // Check if user is authenticated
+    if (!user) {
+      toast.error("Please log in to use the chat feature.");
+      window.location.href = '/auth/login';
+      return;
+    }
 
     if (!canChat) {
       toast.error("Query limit reached. Please upgrade to Pro or wait for reset.");
       return;
     }
 
+    isSendingMessage.current = true;
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -88,16 +218,22 @@ export function ChatInterface({
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      console.log('Sending message with session ID:', currentSessionId);
+      
+      const response = await fetch('/api/chat', {  // Back to original endpoint
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': session ? `Bearer ${session.access_token}` : '',
         },
         body: JSON.stringify({
           message: input,
           conversationHistory: messages,
           mode,
-          sessionId,
+          sessionId: currentSessionId,
           useRAG: true,
           enableDeepThinking: true,
           enableMultiAgent: true
@@ -111,18 +247,58 @@ export function ChatInterface({
 
       const data = await response.json();
       
+      // Handle different response structures
+      let content = '';
+      let citations = [];
+      let reasoningSteps = undefined;
+      let confidence = undefined;
+      let multiAgentResult = undefined;
+      
+      if (data.message) {
+        // New API structure
+        content = data.message.content;
+        citations = data.message.citations || [];
+        reasoningSteps = data.message.reasoningSteps;
+        confidence = data.message.confidence;
+        multiAgentResult = data.message.multiAgentResult;
+      } else if (data.content) {
+        // Direct content structure
+        content = data.content;
+        citations = data.citations || [];
+        reasoningSteps = data.reasoningSteps;
+        confidence = data.confidence;
+        multiAgentResult = data.multiAgentResult;
+      } else {
+        throw new Error('Invalid response structure');
+      }
+      
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: data.content,
+        content: content,
         timestamp: new Date(),
-        citations: data.citations || [],
-        reasoning: data.reasoning,
-        reasoningSteps: data.reasoningSteps,
-        confidence: data.confidence
+        citations: citations,
+        reasoningSteps: reasoningSteps,
+        confidence: confidence,
+        multiAgentResult: multiAgentResult
       };
 
       setMessages(prev => [...prev, aiMessage]);
+      
+      // If this was an internally generated session and it's the first message exchange,
+      // now notify the parent about the session ID
+      if (isInternalSessionChange && messages.length === 1) { // 1 because we just added the user message
+        setIsInternalSessionChange(false);
+        onSessionChange?.(currentSessionId);
+      }
+      
+      // Update session ID if returned from API
+      if (data.sessionId && data.sessionId !== currentSessionId) {
+        setCurrentSessionId(data.sessionId);
+      }
+      
+      // Call onMessageSent callback to refresh sidebar
+      onMessageSent?.();
       
       // Refresh query limit after successful response
       await refreshQueryLimit();
@@ -141,6 +317,7 @@ export function ChatInterface({
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+      isSendingMessage.current = false;
     }
   };
 
@@ -176,37 +353,6 @@ export function ChatInterface({
                    'Source Finder'}
                 </p>
               </div>
-            </div>
-            
-            {/* Mode Toggle */}
-            <div className="flex bg-gray-100 p-1 rounded-lg">
-              <Button
-                variant={mode === 'research' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => handleModeChange('research')}
-                className="flex items-center gap-2 text-xs"
-              >
-                <FlaskConical className="h-3 w-3" />
-                Research
-              </Button>
-              <Button
-                variant={mode === 'doctor' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => handleModeChange('doctor')}
-                className="flex items-center gap-2 text-xs"
-              >
-                <UserCheck className="h-3 w-3" />
-                Doctor
-              </Button>
-              <Button
-                variant={mode === 'source-finder' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => handleModeChange('source-finder')}
-                className="flex items-center gap-2 text-xs"
-              >
-                <Search className="h-3 w-3" />
-                Source
-              </Button>
             </div>
           </div>
           
@@ -247,6 +393,13 @@ export function ChatInterface({
                     : "Paste text snippets and I'll help you find their original sources and citations."
                   }
                 </p>
+                {!user && (
+                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      Please <a href="/auth/login" className="underline font-medium">log in</a> to start chatting
+                    </p>
+                  </div>
+                )}
               </div>
             )}
             
@@ -290,20 +443,24 @@ export function ChatInterface({
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={`Ask a ${mode === 'research' ? 'research' : mode === 'doctor' ? 'medical' : 'source'} question...`}
-              disabled={isLoading || !canChat}
+              placeholder={!user ? "Please log in to chat..." : `Ask a ${mode === 'research' ? 'research' : mode === 'doctor' ? 'medical' : 'source'} question...`}
+              disabled={isLoading || !canChat || !user}
               className="w-full pr-12 py-3 text-sm border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent chat-content"
             />
             <Button 
               type="submit" 
-              disabled={isLoading || !input.trim() || !canChat}
+              disabled={isLoading || !input.trim() || !canChat || !user}
               className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg p-2 disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
             </Button>
           </form>
           <div className="text-xs text-gray-500 mt-2 text-center">
-            {!canChat && !isProUser ? (
+            {!user ? (
+              <span className="text-blue-600">
+                Please <a href="/auth/login" className="underline font-medium">log in</a> to start chatting
+              </span>
+            ) : !canChat && !isProUser ? (
               <span className="text-red-600">
                 Daily limit reached • Upgrade to Pro for unlimited chats or wait {timeUntilReset}
               </span>
@@ -313,6 +470,20 @@ export function ChatInterface({
           </div>
         </div>
       </div>
+
+      {/* Debug Panel - Only console logging, no UI */}
+      {process.env.NODE_ENV === 'development' && (() => {
+        // Log debug info to console only
+        console.log('ChatInterface Debug:', {
+          mode,
+          sessionId: currentSessionId || 'None',
+          messageCount: messages.length,
+          loading: isLoading,
+          canChat,
+          queries: `${queriesUsed}/${queryLimit}`
+        });
+        return null; // Don't render anything
+      })()}
     </div>
   );
 }

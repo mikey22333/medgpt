@@ -16,10 +16,14 @@ MedGPT Scholar is a comprehensive, open-source medical research assistant that c
 
 #### **Doctor Mode** - Conversational Medical Assistance ✅
 - **Empathetic Communication**: Natural, caring doctor-patient conversation style
+- **Patient Education System**: Auto-generates 6th grade reading level explanations ✅ **NEW**
+- **Interactive Reading Levels**: Adjustable complexity (6th/9th/12th grade) ✅ **NEW**
 - **Comprehensive Risk Assessment**: Age-stratified risk analysis with clinical scoring tools
 - **Safety-First Medication Guidelines**: Conservative approach - medications only when truly necessary
 - **Structured Clinical Responses**: Clear formatting with emergency warnings and action plans
 - **Evidence-Based Recommendations**: All advice backed by medical literature with proper citations
+- **Patient-Friendly Medication Cards**: Simplified drug explanations with side effects ✅ **NEW**
+- **Warning Sign Detection**: Auto-highlights symptoms requiring immediate attention ✅ **NEW**
 
 #### **Research Mode** - Academic Medical Analysis ✅
 - **Deep Evidence Synthesis**: Systematic review-level analysis of medical literature
@@ -99,6 +103,15 @@ MedGPT Scholar is a comprehensive, open-source medical research assistant that c
 - **Usage Analytics**: Detailed usage tracking and insights
 
 ### 🎯 **Interactive Medical Tools** ✅ **WORKING**
+
+#### **Patient Education System** ✅ **NEW - Addresses 6/10 Rating**
+- **Auto-Detection**: Automatically identifies medical conditions needing patient education
+- **6th Grade Reading Level**: Complex medical terms simplified for general audience
+- **Interactive Complexity**: Switch between basic (6th), intermediate (9th), advanced (12th grade)
+- **Condition-Specific Guides**: Comprehensive education for stroke, heart disease, diabetes
+- **Safety-First Design**: Prominent warning signs and "when to call doctor" guidance
+- **Medication Simplification**: Patient-friendly drug explanations with side effects
+- **Visual Organization**: Color-coded sections with icons for easy navigation
 
 #### **Document Analysis** ✅
 - **PDF Medical Report Processing**: Extract and analyze medical documents

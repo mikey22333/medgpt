@@ -219,24 +219,40 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Function to update updated_at column
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Chat Messages table for conversation management
-CREATE TABLE IF NOT EXISTS public.chat_messages (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  session_id UUID NOT NULL,
-  mode VARCHAR(50) NOT NULL CHECK (mode IN ('research', 'doctor', 'source-finder')),
-  role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant')),
-  content TEXT NOT NULL,
-  citations JSONB,
-  confidence_score INTEGER,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
-);
+CREATE TABLE public.chat_messages (
+  id uuid not null default extensions.uuid_generate_v4 (),
+  user_id uuid not null,
+  session_id uuid not null,
+  mode text not null,
+  role text not null,
+  content text not null,
+  citations jsonb null,
+  confidence_score integer null,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  constraint chat_messages_pkey primary key (id),
+  constraint chat_messages_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE
+) TABLESPACE pg_default;
 
 -- Create indexes for chat_messages
-CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON public.chat_messages(user_id);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON public.chat_messages(session_id);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON public.chat_messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON public.chat_messages USING btree (user_id) TABLESPACE pg_default;
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON public.chat_messages USING btree (session_id) TABLESPACE pg_default;
+CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON public.chat_messages USING btree (created_at) TABLESPACE pg_default;
+
+-- Create trigger for updated_at column
+CREATE TRIGGER update_chat_messages_updated_at BEFORE
+UPDATE ON chat_messages FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column ();
 
 -- Enable RLS for chat_messages
 ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;

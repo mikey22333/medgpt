@@ -451,21 +451,6 @@ Be extremely thorough and consider all possibilities. If multiple papers could b
  * Generate deep thinking structure display for prompts
  */
 function generateDeepThinkingDisplay(reasoningSteps: ReasoningStep[], mode: string): string {
-  if (!reasoningSteps || reasoningSteps.length === 0) return '';
-  
-  let display = '\n**🧠 REASONING PROCESS:**\n';
-  
-  reasoningSteps.forEach((step, index) => {
-    display += `\n**Step ${step.step}: ${step.title}**\n`;
-    display += `${step.process}\n`;
-    if (step.confidence) {
-      display += `Confidence: ${step.confidence}%\n`;
-    }
-    if (step.uncertainties.length > 0) {
-      display += `Uncertainties: ${step.uncertainties.join(', ')}\n`;
-    }
-    display += '\n';
-  });
-  
-  return display;
+  // Reasoning process hidden from user view - users don't want to see technical reasoning
+  return '';
 }

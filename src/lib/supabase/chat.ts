@@ -181,107 +181,76 @@ class ChatClient {
   // Get all conversations for a user, grouped by mode
   async getUserConversations(userId: string): Promise<{ [mode in ChatMode]: Conversation[] }> {
     try {
-      // Get all unique sessions with their latest message
+      const timestamp = new Date().toISOString();
+      console.log(`[${timestamp}] ChatClient: getUserConversations called with userId:`, userId);
+      
+      // Simple test - just get all messages for the user
       const { data, error } = await this.supabase
         .from('chat_messages')
-        .select('session_id, mode, role, content, created_at')
+        .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
-      console.log('Supabase query result:', { data, error, userId });
+      console.log(`[${timestamp}] ChatClient: Supabase query result:`, { 
+        error: error?.message, 
+        dataCount: data?.length || 0,
+        userId: userId
+      });
 
       if (error) {
-        console.error('Error fetching conversations:', error);
-        console.error('Error details:', JSON.stringify(error, null, 2));
+        console.error('ChatClient: Error fetching conversations:', error);
         return { research: [], doctor: [], 'source-finder': [] };
       }
 
-      // Group by session_id and get the latest message for each
-      const sessionMap = new Map<string, {
-        mode: ChatMode;
-        title: string;
-        last_message: string;
-        last_message_at: string;
-        created_at: string;
-        message_count: number;
-      }>();
-
-      for (const record of data || []) {
-        const sessionId = record.session_id;
-        const existing = sessionMap.get(sessionId);
-        
-        // Skip system messages for title/preview generation
-        if (record.role === 'system') continue;
-        
-        // Determine title (first user message or default)
-        let title = 'New Conversation';
-        if (record.role === 'user' && record.content?.trim()) {
-          title = record.content.slice(0, 50) + (record.content.length > 50 ? '...' : '');
-        }
-
-        // Use the content as last message
-        let lastMessage = record.content || 'No messages yet';
-        lastMessage = lastMessage.slice(0, 100) + (lastMessage.length > 100 ? '...' : '');
-
-        if (!existing) {
-          sessionMap.set(sessionId, {
-            mode: record.mode as ChatMode,
-            title,
-            last_message: lastMessage,
-            last_message_at: record.created_at,
-            created_at: record.created_at,
-            message_count: 1
-          });
-        } else {
-          // Update title if this is a user message and we don't have a title yet
-          if (record.role === 'user' && record.content?.trim() && existing.title === 'New Conversation') {
-            existing.title = title;
-          }
-          existing.message_count++;
-          
-          // Update last message time if this is more recent
-          if (new Date(record.created_at) > new Date(existing.last_message_at)) {
-            existing.last_message = lastMessage;
-            existing.last_message_at = record.created_at;
-          }
-        }
+      // If no data, return empty
+      if (!data || data.length === 0) {
+        console.log(`[${timestamp}] ChatClient: No messages found for user:`, userId);
+        return { research: [], doctor: [], 'source-finder': [] };
       }
 
-      // Convert to grouped conversations
+      // Group by session_id
+      const sessionGroups = new Map<string, any[]>();
+      for (const message of data) {
+        const sessionId = message.session_id;
+        if (!sessionGroups.has(sessionId)) {
+          sessionGroups.set(sessionId, []);
+        }
+        sessionGroups.get(sessionId)!.push(message);
+      }
+
+      // Convert to conversations
       const result: { [mode in ChatMode]: Conversation[] } = {
         research: [],
         doctor: [],
         'source-finder': []
       };
 
-      for (const [sessionId, data] of sessionMap.entries()) {
-        // Only include sessions that have actual messages
-        if (data.message_count > 0 && (data.last_message !== 'No messages yet')) {
-          result[data.mode].push({
+      for (const [sessionId, messages] of sessionGroups.entries()) {
+        // Find first user message for title
+        const firstUserMessage = messages.find(m => m.role === 'user');
+        const lastMessage = messages[0]; // Since we ordered by created_at DESC
+        
+        if (firstUserMessage) {
+          const mode = firstUserMessage.mode as ChatMode;
+          const title = firstUserMessage.content?.slice(0, 50) + (firstUserMessage.content?.length > 50 ? '...' : '') || 'New Conversation';
+          const lastMessageContent = lastMessage.content?.slice(0, 100) + (lastMessage.content?.length > 100 ? '...' : '') || 'No content';
+          
+          result[mode].push({
             id: sessionId,
-            mode: data.mode,
-            title: data.title,
-            last_message: data.last_message,
-            last_message_at: data.last_message_at,
-            created_at: data.created_at,
+            mode,
+            title,
+            last_message: lastMessageContent,
+            last_message_at: lastMessage.created_at,
+            created_at: firstUserMessage.created_at,
             user_id: userId,
-            message_count: data.message_count
+            message_count: messages.length
           });
         }
-      }
-
-      // Sort each mode by last message time
-      for (const mode of Object.keys(result) as ChatMode[]) {
-        result[mode].sort((a, b) => 
-          new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
-        );
       }
 
       return result;
     } catch (error) {
       console.error('Error fetching conversations (catch):', error);
-      console.error('Error type:', typeof error);
-      console.error('Error stringified:', JSON.stringify(error, null, 2));
       return { research: [], doctor: [], 'source-finder': [] };
     }
   }

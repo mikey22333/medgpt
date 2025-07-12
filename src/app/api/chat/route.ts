@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TogetherAIClient } from "@/lib/ai/together";
 import { RAGPipeline } from "@/lib/research/rag";
-import { createEnhancedMedicalPrompt, createMedicalPrompt, validateMedicalQuery } from "@/lib/ai/prompts";
+import { createEnhancedMedicalPrompt, validateMedicalQuery } from "@/lib/ai/prompts";
 import { DeepThinkingEngine } from "@/lib/ai/deep-thinking";
 import { MultiAgentReasoningSystem } from "@/lib/ai/multi-agent-reasoning";
 import { RealTimeReasoningEngine, AdvancedConfidenceCalibration } from "@/lib/ai/real-time-reasoning";
@@ -21,11 +21,20 @@ interface ChatRequest {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('Chat API: Request received at', new Date().toISOString());
+    
     // Check authentication
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
+    console.log('Chat API: User authentication check:', { 
+      userId: user?.id, 
+      hasError: !!authError,
+      errorMessage: authError?.message 
+    });
+    
     if (authError || !user) {
+      console.log('Chat API: Authentication failed');
       return NextResponse.json(
         { error: "Authentication required" },
         { status: 401 }
@@ -37,7 +46,14 @@ export async function POST(request: NextRequest) {
       user_uuid: user.id
     });
 
+    console.log('Chat API: Query limit check:', { 
+      userId: user.id, 
+      limitCheck, 
+      canProceed: !!limitCheck 
+    });
+
     if (!limitCheck) {
+      console.log('Chat API: Query limit exceeded');
       return NextResponse.json(
         { error: "Query limit exceeded. Please upgrade your plan or wait for the next billing cycle." },
         { status: 429 }
@@ -46,7 +62,17 @@ export async function POST(request: NextRequest) {
 
     const body: ChatRequest = await request.json();
     
+    console.log('Chat API: Request body received:', {
+      hasMessage: !!body.message,
+      messageLength: body.message?.length,
+      mode: body.mode,
+      sessionId: body.sessionId,
+      useRAG: body.useRAG,
+      historyLength: body.conversationHistory?.length
+    });
+    
     if (!body.message || body.message.trim().length === 0) {
+      console.log('Chat API: Empty message received');
       return NextResponse.json(
         { error: "Message is required" },
         { status: 400 }
@@ -62,26 +88,30 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Basic validation - check for extremely long messages
+    if (body.message.length > 5000) {
+      return NextResponse.json(
+        { error: "Message too long. Please keep your question under 5000 characters." },
+        { status: 400 }
+      );
+    }
+
     const userMessage = body.message.trim();
     const model = body.model || process.env.TOGETHER_AI_MODEL || "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free";
-    const useRAG = body.useRAG !== false; // Default to true
+    const useRAG = body.useRAG !== false; // Re-enable RAG - Default to true
     const mode = body.mode || 'research'; // Default to research mode
-    const enableDeepThinking = true; // Always enabled for optimal medical analysis
-    const enableMultiAgent = true; // Always enabled for comprehensive multi-agent reasoning
-    const sessionId = body.sessionId || `session_${Date.now()}`;
+    const enableDeepThinking = body.enableDeepThinking !== false; // Re-enable deep thinking
+    const enableMultiAgent = body.enableMultiAgent !== false; // Re-enable multi-agent
+    const sessionId = body.sessionId || crypto.randomUUID();
 
-    // Initialize services
+    // Initialize AI service
     const apiKey = process.env.TOGETHER_API_KEY;
     
     if (!apiKey) {
       return NextResponse.json({
         error: "AI service is not configured",
-        message: "Together AI API key is missing. Please configure TOGETHER_API_KEY environment variable.",
-        suggestions: [
-          "Add TOGETHER_API_KEY to your .env.local file",
-          "Get an API key from https://api.together.xyz",
-          "Restart the server after adding the API key"
-        ]
+        message: "Together AI API key is missing.",
+        suggestions: ["Please contact support"]
       }, { status: 503 });
     }
 
@@ -89,15 +119,12 @@ export async function POST(request: NextRequest) {
 
     // Check if Together AI is available
     const isTogetherHealthy = await together.checkHealth();
+    
     if (!isTogetherHealthy) {
       return NextResponse.json({
         error: "AI service is currently unavailable",
-        message: "The Together AI API is not accessible. Please check your API key and connection.",
-        suggestions: [
-          "Verify your Together AI API key is valid",
-          "Check your internet connection",
-          "Visit https://api.together.xyz for service status"
-        ]
+        message: "The AI service is temporarily unavailable.",
+        suggestions: ["Please try again in a moment"]
       }, { status: 503 });
     }
 
@@ -106,7 +133,7 @@ export async function POST(request: NextRequest) {
     let reasoningSteps: any[] = [];
     let multiAgentResult: any = null;
 
-    // Initialize multi-agent system if enabled
+    // Initialize advanced reasoning systems
     const multiAgentSystem = new MultiAgentReasoningSystem();
     const realTimeEngine = new RealTimeReasoningEngine();
 
@@ -115,14 +142,14 @@ export async function POST(request: NextRequest) {
       try {
         console.log("Starting RAG retrieval...");
         const rag = new RAGPipeline();
-        const ragResult = await rag.retrieveContext(userMessage, 4); // Reduced to 4 for better token management
+        const ragResult = await rag.retrieveContext(userMessage, 4); // Increased for better coverage
         
         citations = ragResult.citations;
         ragContext = ragResult.contextSummary;
         
         console.log(`RAG completed: ${citations.length} citations found`);
       } catch (error) {
-        console.error("RAG pipeline error:", error);
+        console.error('RAG pipeline error:', error);
         // Continue without RAG context
         ragContext = "Research context retrieval failed. Providing general medical knowledge.";
       }
@@ -192,11 +219,10 @@ export async function POST(request: NextRequest) {
       }
     } else if (mode === 'source-finder') {
       // Enhanced citation network analysis
-      // Note: Source finder typically uses its own API endpoint, but we support it here for completeness
-      console.log("Source finder mode in chat API - consider using dedicated endpoint");
+      console.log("Source finder mode - Enhanced citation analysis enabled");
     }
-
-    // Create the enhanced medical prompt with deep thinking
+    
+    // Create the enhanced medical prompt with all advanced features
     const prompt = createEnhancedMedicalPrompt({
       userQuery: userMessage,
       researchPapers: citations,
@@ -206,7 +232,7 @@ export async function POST(request: NextRequest) {
       reasoningSteps: reasoningSteps
     });
 
-    console.log("Generating AI response...");
+    console.log("Generating AI response with enhanced medical analysis...");
 
     // Convert the medical prompt to messages format for Together AI
     const messages = [
@@ -222,9 +248,7 @@ export async function POST(request: NextRequest) {
       max_tokens: 2000
     });
 
-    console.log("AI response generated successfully");
-
-    // Create response message
+    // Create response message with all advanced features
     const assistantMessage: Message = {
       id: Date.now().toString(),
       role: "assistant",
@@ -233,11 +257,51 @@ export async function POST(request: NextRequest) {
       citations: citations.length > 0 ? citations : undefined,
       reasoningSteps: reasoningSteps.length > 0 ? reasoningSteps : undefined,
       multiAgentResult: multiAgentResult,
+      confidence: multiAgentResult ? multiAgentResult.confidenceCalibration?.overallConfidence : undefined,
       sessionId: sessionId
     };
 
     // Log the query to database
     try {
+      console.log('Chat API: Saving messages for session:', sessionId, 'user:', user.id);
+      console.log('Chat API: Message details:', {
+        userMessage: userMessage.slice(0, 100) + '...',
+        aiResponseLength: aiResponse.length,
+        citationsCount: citations.length,
+        mode: mode
+      });
+      
+      // First save the user message
+      const userInsertResult = await supabase.from('chat_messages').insert({
+        user_id: user.id,
+        session_id: sessionId,
+        mode: mode,
+        role: 'user',
+        content: userMessage
+      });
+      
+      console.log('Chat API: User message insert result:', {
+        error: userInsertResult.error,
+        success: !userInsertResult.error
+      });
+
+      // Then save the assistant message  
+      const assistantInsertResult = await supabase.from('chat_messages').insert({
+        user_id: user.id,
+        session_id: sessionId,
+        mode: mode,
+        role: 'assistant',
+        content: aiResponse,
+        citations: citations.length > 0 ? citations : null,
+        confidence_score: multiAgentResult ? Math.round(multiAgentResult.confidenceCalibration?.overallConfidence || 75) : null
+      });
+      
+      console.log('Chat API: Assistant message insert result:', {
+        error: assistantInsertResult.error,
+        success: !assistantInsertResult.error
+      });
+
+      // Finally, handle analytics and query count
       await Promise.all([
         // Insert query record
         supabase.from('user_queries').insert({
@@ -246,17 +310,19 @@ export async function POST(request: NextRequest) {
           query_text: userMessage,
           response_text: aiResponse,
           citations: citations.length > 0 ? citations : null,
-          confidence_score: citations.length > 0 ? Math.round(citations.reduce((sum, c) => sum + (c.confidenceScore || 50), 0) / citations.length) : null,
+          confidence_score: multiAgentResult ? Math.round(multiAgentResult.confidenceCalibration?.overallConfidence || 75) : 75,
           session_id: sessionId
         }),
         // Increment user query count
         supabase.rpc('increment_query_count', { user_uuid: user.id })
       ]);
+      
+      console.log('Chat API: Messages saved successfully');
     } catch (dbError) {
-      console.warn('Failed to log query to database:', dbError);
+      console.error('Chat API: Failed to log query to database:', dbError);
       // Don't fail the request if logging fails
     }
-
+    
     return NextResponse.json({
       message: assistantMessage,
       metadata: {
@@ -264,6 +330,11 @@ export async function POST(request: NextRequest) {
         ragEnabled: useRAG,
         citationsFound: citations.length,
         ragSummary: ragContext,
+        deepThinkingEnabled: enableDeepThinking,
+        multiAgentEnabled: enableMultiAgent,
+        reasoningStepsCount: reasoningSteps.length,
+        agentInsightsCount: multiAgentResult ? multiAgentResult.agentInsights?.length || 0 : 0,
+        overallConfidence: multiAgentResult ? multiAgentResult.confidenceCalibration?.overallConfidence : undefined,
         processingTime: Date.now()
       }
     });
@@ -273,7 +344,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({
       error: "Failed to process your request",
-      message: error instanceof Error ? error.message : "An unexpected error occurred",
+      message: "An unexpected error occurred. Please try again.",
       suggestions: [
         "Please try again in a moment",
         "Check your internet connection",

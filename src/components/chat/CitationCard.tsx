@@ -34,10 +34,10 @@ export function CitationCard({ citation }: CitationCardProps) {
   };
 
   return (
-    <Card className="p-4 citation-card border-l-4 border-l-blue-500 bg-blue-50/50">
-      <div className="space-y-3">
+    <Card className="p-3 citation-card border-l-4 border-l-blue-500 bg-blue-50/50">
+      <div className="space-y-2">
         <div className="flex items-start justify-between gap-2">
-          <h4 className="font-medium text-sm leading-tight text-gray-900 flex-1">
+          <h4 className="font-medium text-xs leading-tight text-gray-900 flex-1">
             {citation.title}
           </h4>
           <div className="flex gap-1 flex-shrink-0">
@@ -45,7 +45,7 @@ export function CitationCard({ citation }: CitationCardProps) {
               variant="ghost"
               size="sm"
               onClick={handleCopy}
-              className="h-8 w-8 p-0"
+              className="h-6 w-6 p-0"
               title="Copy citation"
             >
               <Copy className="h-3 w-3" />
@@ -55,7 +55,7 @@ export function CitationCard({ citation }: CitationCardProps) {
                 variant="ghost"
                 size="sm"
                 onClick={handleOpen}
-                className="h-8 w-8 p-0"
+                className="h-6 w-6 p-0"
                 title="Open source"
               >
                 <ExternalLink className="h-3 w-3" />
@@ -71,20 +71,20 @@ export function CitationCard({ citation }: CitationCardProps) {
         )}
         
         {citation.abstract && (
-          <div className="text-xs text-gray-600 line-clamp-2">
+          <div className="text-xs text-gray-600 line-clamp-1">
             {citation.abstract}
           </div>
         )}
         
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1">
           {citation.year && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
               {citation.year}
             </Badge>
           )}
           
           {citation.journal && (
-            <Badge variant="outline" className="text-xs max-w-full truncate">
+            <Badge variant="outline" className="text-xs px-1.5 py-0.5 max-w-full truncate">
               {citation.journal}
             </Badge>
           )}
@@ -92,24 +92,24 @@ export function CitationCard({ citation }: CitationCardProps) {
           {citation.evidenceLevel && (
             <Badge 
               variant="secondary" 
-              className={`text-xs ${
+              className={`text-xs px-1.5 py-0.5 ${
                 citation.evidenceLevel === 'High' ? 'bg-green-100 text-green-800' :
                 citation.evidenceLevel === 'Moderate' ? 'bg-yellow-100 text-yellow-800' :
                 'bg-gray-100 text-gray-800'
               }`}
             >
-              {citation.evidenceLevel} Evidence
+              {citation.evidenceLevel}
             </Badge>
           )}
           
           {citation.confidenceScore && (
-            <Badge variant="outline" className="text-xs">
-              {citation.confidenceScore}% confidence
+            <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+              {citation.confidenceScore}%
             </Badge>
           )}
           
           {citation.source && (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs px-1.5 py-0.5">
               {citation.source}
             </Badge>
           )}

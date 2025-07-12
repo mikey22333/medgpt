@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -21,6 +21,7 @@ export default function ChatPage() {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [userPlan, setUserPlan] = useState<'free' | 'pro'>('free');
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // Add refresh trigger
   const dropdownRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
 
@@ -77,31 +78,37 @@ export default function ChatPage() {
     setShowSettingsDropdown(false);
   };
 
-  const handleConversationSelect = (conversationId: string, mode: 'research' | 'doctor' | 'source-finder') => {
+  const handleConversationSelect = useCallback((conversationId: string, mode: 'research' | 'doctor' | 'source-finder') => {
     setCurrentConversationId(conversationId);
     setCurrentMode(mode);
     refreshQueryLimit();
-  };
+  }, [refreshQueryLimit]);
 
-  const handleNewChat = (mode?: 'research' | 'doctor' | 'source-finder') => {
+  const handleNewChat = useCallback((mode?: 'research' | 'doctor' | 'source-finder') => {
     // Clear current conversation to start fresh
     setCurrentConversationId(null);
     if (mode) {
       setCurrentMode(mode);
     }
+    setRefreshTrigger(prev => prev + 1); // Trigger ChatSidebar refresh
     refreshQueryLimit();
-  };
+  }, [refreshQueryLimit]);
 
-  const handleSessionCreate = (sessionId: string) => {
+  const handleMessageSent = useCallback(() => {
+    setRefreshTrigger(prev => prev + 1); // Trigger ChatSidebar refresh
+  }, []);
+
+  const handleSessionCreate = useCallback((sessionId: string) => {
     setCurrentConversationId(sessionId);
+    setRefreshTrigger(prev => prev + 1); // Trigger ChatSidebar refresh
     refreshQueryLimit();
-  };
+  }, [refreshQueryLimit]);
 
-  const handleModeChange = (mode: 'research' | 'doctor' | 'source-finder') => {
+  const handleModeChange = useCallback((mode: 'research' | 'doctor' | 'source-finder') => {
     setCurrentMode(mode);
-    setCurrentConversationId(null); // Start new conversation when changing modes
+    // Don't reset conversation ID when changing modes - keep the same session
     refreshQueryLimit();
-  };
+  }, [refreshQueryLimit]);
 
   if (loading) {
     return (
@@ -129,12 +136,14 @@ export default function ChatPage() {
     <ProtectedRoute>
       <div className="h-screen h-[100dvh] flex bg-white overflow-hidden max-w-full">
         {/* Desktop Sidebar - Hidden on mobile */}
-        <div className="hidden md:flex flex-shrink-0" style={{ width: '256px', maxWidth: '256px', minWidth: '256px', overflow: 'hidden' }}>
+        <div className="hidden md:flex flex-col flex-shrink-0" style={{ width: '256px', maxWidth: '256px', minWidth: '256px', overflow: 'hidden' }}>
           <ChatSidebar
             currentSessionId={currentConversationId || undefined}
             currentMode={currentMode}
             onSessionSelect={handleConversationSelect}
             onNewChat={handleNewChat}
+            onModeChange={handleModeChange}
+            refreshTrigger={refreshTrigger}
           />
         </div>
 
@@ -154,6 +163,8 @@ export default function ChatPage() {
                   handleNewChat(mode);
                   setShowMobileSidebar(false);
                 }}
+                onModeChange={handleModeChange}
+                refreshTrigger={refreshTrigger}
               />
             </div>
           </div>
@@ -239,11 +250,12 @@ export default function ChatPage() {
           {/* Chat Interface */}
           <div className="flex-1 overflow-hidden max-w-full min-w-0">
             <ChatInterface 
-              sessionId={currentConversationId || undefined}
+              sessionId={currentConversationId}
               mode={currentMode}
               onSessionChange={handleSessionCreate}
               hideHeader={false}
               onModeChange={handleModeChange}
+              onMessageSent={handleMessageSent}
             />
           </div>
         </div>

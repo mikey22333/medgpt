@@ -34,6 +34,9 @@ export function createMedicalPrompt(context: MedicalPromptContext): string {
 export function createEnhancedMedicalPrompt(context: EnhancedMedicalPromptContext): string {
   const { userQuery, researchPapers, conversationHistory, mode = 'research', enableDeepThinking = false } = context;
 
+  // Create lowercase version of query for condition checking
+  const queryLower = userQuery.toLowerCase();
+
   // Generate reasoning steps if deep thinking is enabled
   let reasoningSteps: ReasoningStep[] = [];
   if (enableDeepThinking) {
@@ -122,6 +125,13 @@ export function createEnhancedMedicalPrompt(context: EnhancedMedicalPromptContex
     prompt += "   - Uncertainty quantification\n";
     prompt += "   - Future research priorities\n\n";
     prompt += "Use ONLY the research provided below. Cite studies by title and PMID/ID. Be transparent about evidence quality and limitations.\n\n";
+    prompt += "**CRITICAL INSTRUCTION FOR INADEQUATE SOURCES:**\n";
+    prompt += "If provided sources are unrelated to the research question:\n";
+    prompt += "1. **CLEARLY STATE** this limitation at the beginning of your response\n";
+    prompt += "2. **IDENTIFY MISSING LANDMARK STUDIES** by name and PMID\n";
+    prompt += "3. **USE ESTABLISHED MEDICAL KNOWLEDGE** but explicitly acknowledge this limitation\n";
+    prompt += "4. **RECOMMEND SPECIFIC SEARCHES** that would yield better evidence\n";
+    prompt += "5. **INCLUDE RELEVANT GUIDELINES** from major organizations (CDC, NICE, AHA, ESC)\n\n";
     prompt += "Research Question: " + userQuery;
   }
 
@@ -136,16 +146,26 @@ export function createEnhancedMedicalPrompt(context: EnhancedMedicalPromptContex
       });
     } else {
       prompt += "\n\nResearch Sources (Academic Papers & FDA Resources):\n";
+      prompt += "**SOURCE RELEVANCE ASSESSMENT REQUIRED:**\n";
+      prompt += "You MUST evaluate each source for direct relevance to the query. If sources are unrelated, explicitly state this.\n\n";
       truncatedPapers.forEach((paper: Citation, index: number) => {
         const identifier = paper.pmid ? `PMID: ${paper.pmid}` : `ID: ${paper.id}`;
         const evidenceLevel = getEvidenceLevel(paper.title || '');
+        const gradeConfidence = getGRADEConfidence(paper);
         prompt += `${index + 1}. [${evidenceLevel}] "${paper.title}" – ${paper.journal}, ${paper.year} (${identifier})\n`;
         prompt += `   Summary: ${paper.abstract}\n`;
         prompt += `   Quality: ${assessStudyQuality(paper)}\n`;
+        prompt += `   GRADE Confidence: ${gradeConfidence}\n`;
+        prompt += `   **RELEVANCE CHECK REQUIRED**: Assess if this source directly addresses the research question\n`;
       });
     }
   } else if (mode === 'research') {
     prompt += "\n\nResearch Sources:\n";
+    prompt += "⚠️ **CRITICAL SOURCE QUALITY ASSESSMENT REQUIRED:**\n";
+    prompt += "- If provided sources are unrelated to the query, you MUST state this clearly\n";
+    prompt += "- You MUST identify what landmark studies are missing from the provided sources\n";
+    prompt += "- When sources are irrelevant, rely on established medical knowledge but explicitly state this limitation\n";
+    prompt += "- **EXAMPLE**: 'The provided sources (COVID protocols, skin products) do not address smoking cessation. This response is based on established evidence from landmark trials not included in the search results.'\n";
     prompt += "⚠️ No directly matching papers found for this specific query. Response will be based on established medical knowledge and general principles. Please search for more specific literature for evidence-based recommendations.";
   }
 
@@ -210,68 +230,276 @@ export function createEnhancedMedicalPrompt(context: EnhancedMedicalPromptContex
     prompt += "- Provide comprehensive analysis without requiring additional patient input\n";
     prompt += "- Cover all scenarios from low-risk to emergency situations";
   } else {
-    prompt += "\nYou MUST structure your response in a professional clinical format:\n\n";
-    prompt += "## Evidence Quality Assessment\n";
-    if (enableDeepThinking) {
-      prompt += "Systematic evaluation of study quality, bias risk, and evidence hierarchy\n\n";
-    } else {
-      prompt += "Brief assessment of available evidence\n\n";
+    prompt += "\nYou MUST structure your response in a comprehensive clinical research format:\n\n";
+    prompt += "🧠 **Research Answer:** [Restate the question clearly]\n\n";
+    prompt += "🧾 **Clinical Summary (TL;DR)**\n\n";
+    prompt += "• 🧠 **Primary Cause:** [Main finding] → [Confidence level with stars]\n\n";
+    prompt += "• 🔬 **Secondary Causes:** [Additional findings with confidence]\n\n";
+    prompt += "• 🔎 **Diagnostic Tools:** [Key diagnostic approaches]\n\n";
+    prompt += "• ⚠️ **Evidence Gaps:** [Critical limitations in current evidence]\n\n";
+    prompt += "🔬 **Evidence Sources and Study Types**\n";
+    prompt += "- Total papers screened and selection criteria\n";
+    prompt += "- Highlight strongest evidence source with PMID\n";
+    prompt += "- Note supporting evidence types (observational, FDA reports, etc.)\n\n";
+
+    // Special handling for CAC vs stress testing queries
+    if (queryLower.includes('cac') || queryLower.includes('calcium score') || queryLower.includes('stress test') || 
+        (queryLower.includes('coronary') && (queryLower.includes('calcium') || queryLower.includes('stress')))) {
+      prompt += "**SPECIAL INSTRUCTIONS FOR CAC vs STRESS TESTING COMPARISON:**\n";
+      prompt += "You MUST address the following landmark studies and clinical evidence:\n\n";
+      prompt += "**ESSENTIAL LANDMARK TRIALS TO REFERENCE:**\n";
+      prompt += "1. **MESA Study (Multi-Ethnic Study of Atherosclerosis)** - PMID: 18305265\n";
+      prompt += "   - Established CAC scoring for cardiovascular risk prediction\n";
+      prompt += "   - Demonstrated CAC superior to traditional risk factors\n";
+      prompt += "   - Key finding: CAC=0 associated with very low event rate\n\n";
+      prompt += "2. **PROMISE Trial** - PMID: 25773919\n";
+      prompt += "   - Direct RCT comparing anatomical (CAC/CCTA) vs functional testing\n";
+      prompt += "   - 10,003 patients with stable chest pain\n";
+      prompt += "   - Primary endpoint: Death, MI, hospitalization for unstable angina, major complications\n\n";
+      prompt += "3. **SCOT-HEART Trial** - PMID: 30145972\n";
+      prompt += "   - CT angiography vs standard care in stable chest pain\n";
+      prompt += "   - 5-year outcomes showing reduced MI and cardiac death\n";
+      prompt += "   - Demonstrated clinical utility of anatomical testing\n\n";
+      prompt += "**REQUIRED CLINICAL CONTEXT:**\n";
+      prompt += "- **Patient Population**: Asymptomatic vs symptomatic patients\n";
+      prompt += "- **Risk Stratification**: Primary prevention vs known CAD\n";
+      prompt += "- **Guidelines**: ACC/AHA 2019 Primary Prevention Guidelines on CAC\n";
+      prompt += "- **Cost-Effectiveness**: Screening costs vs downstream testing\n";
+      prompt += "- **Radiation Exposure**: CAC (1-3 mSv) vs nuclear stress (9-15 mSv)\n\n";
+      prompt += "**EVIDENCE SYNTHESIS REQUIREMENTS:**\n";
+      prompt += "- Compare diagnostic accuracy (sensitivity/specificity)\n";
+      prompt += "- Discuss prognostic value (risk reclassification)\n";
+      prompt += "- Address appropriate use criteria\n";
+      prompt += "- Include guideline recommendations (ACC/AHA, ESC)\n";
+      prompt += "- Mention real-world implementation considerations\n\n";
     }
-    prompt += "## Research Synthesis\n";
-    if (enableDeepThinking) {
-      prompt += "Multi-study analysis with convergent and divergent findings\n\n";
-    } else {
-      prompt += "Summary of key findings from research\n\n";
-    }
-    prompt += "## Clinical Relevance\n";
-    if (enableDeepThinking) {
-      prompt += "Translation of research to clinical practice with population considerations\n\n";
-    } else {
-      prompt += "Practical implications of the research\n\n";
-    }
-    prompt += "## Critical Analysis\n";
-    if (enableDeepThinking) {
-      prompt += "Limitations, biases, and areas of uncertainty in the evidence base\n\n";
-    } else {
-      prompt += "Study limitations and considerations\n\n";
-    }
-    prompt += "## Evidence-Based Conclusions\n";
-    if (enableDeepThinking) {
-      prompt += "Graded recommendations with confidence intervals\n\n";
-    } else {
-      prompt += "Summary conclusions based on evidence\n\n";
-    }
-    
-    if (enableDeepThinking) {
-      prompt += "## Research Gaps & Future Directions\n";
-      prompt += "Identification of knowledge gaps and research priorities\n\n";
-    }
+
+    prompt += "🧪 **Top Identified Causes of [Condition]**\n";
+    prompt += "**EVIDENCE HIERARCHY - STRICT PRIORITIZATION:**\n";
+    prompt += "1. **LANDMARK RANDOMIZED CONTROLLED TRIALS** (Level 1 Evidence - HIGHEST PRIORITY)\n";
+    prompt += "2. **Systematic Reviews & Meta-analyses** (Level 1 Evidence)\n";
+    prompt += "3. **Large Registry Studies & National Databases** (Level 2 Evidence)\n";
+    prompt += "4. **Clinical Guidelines from Major Organizations** (ESC, AHA, ACC, NICE)\n";
+    prompt += "5. **Prospective Cohort Studies** (Level 3 Evidence)\n";
+    prompt += "6. **Case-Control Studies** (Level 4 Evidence)\n";
+    prompt += "7. **FDA/EMA Reports & Case Series** (Level 5 Evidence - SUPPORTING ONLY)\n\n";
+    prompt += "**CRITICAL INSTRUCTION:** You MUST prioritize Level 1-2 evidence. Only cite Level 4-5 evidence if higher-quality studies are unavailable, and clearly state this limitation.\n\n";
+    prompt += "For each major finding:\n";
+    prompt += "1. **[Icon + Cause/Finding Name]**\n";
+    prompt += "   - **Primary Study**: [LANDMARK TRIAL NAME if available - e.g., NAVIGATE ESUS, COMPASS, SPARCL]\n";
+    prompt += "   - **PMID/Source**: [PMID: XXXXXXX] with publication year\n";
+    prompt += "   - **Evidence Level**: [Level 1-5] - MUST justify why this level was assigned\n";
+    prompt += "   - **GRADE Confidence**: [HIGH | MODERATE | LOW | VERY LOW] with specific reasoning\n";
+    prompt += "   - **Study Design**: [RCT/Meta-analysis/Registry/Observational] - be specific\n";
+    prompt += "   - **Clinical Relevance**: [Direct applicability to the question asked]\n";
+    prompt += "   - **Limitations**: [Specific study limitations that affect confidence]\n\n";
+    prompt += "📊 **ENHANCED GRADE Evidence Table**\n";
+    prompt += "**MANDATORY EVIDENCE QUALITY ASSESSMENT:**\n";
+    prompt += "For EACH citation, you MUST include:\n";
+    prompt += "- **Study Design Justification**: Why this design was chosen and its limitations\n";
+    prompt += "- **Confidence Reasoning**: Specific factors affecting GRADE rating\n";
+    prompt += "- **Clinical Applicability**: How directly this applies to the question\n";
+    prompt += "- **Missing Evidence**: What higher-quality studies are needed\n\n";
+    prompt += "| Finding | Landmark Study | Design | GRADE | Confidence Justification | Missing Evidence |\n";
+    prompt += "|---------|---------------|--------|-------|-------------------------|------------------|\n";
+    prompt += "| Primary Endpoint | [TRIAL NAME + PMID] | RCT/Meta-analysis | HIGH/MOD/LOW | [Specific reasoning] | [What's still needed] |\n\n";
     
     const citationCount = Math.min(2, truncatedPapers.length);
     const idType = truncatedPapers.length > 0 && truncatedPapers[0].pmid ? 'PMID' : 'ID';
+    prompt += `**ENHANCED CITATION REQUIREMENTS:**\n`;
     prompt += `- You MUST cite at least ${citationCount} sources using: "[TITLE]" (${idType}: XXXXXXXX)\n`;
-    prompt += "- Include evidence quality ratings (High/Moderate/Low/Very Low)\n";
-    prompt += "- Be transparent about limitations and uncertainty";
+    prompt += "- **MANDATORY**: For each citation, explain WHY this evidence level was assigned\n";
+    prompt += "- **MANDATORY**: State specific limitations that downgrade confidence\n";
+    prompt += "- **MANDATORY**: Identify what higher-quality evidence is missing\n";
+    prompt += "- **TRANSPARENCY REQUIREMENT**: If citing observational studies, explicitly state 'This is based on observational evidence only' and explain implications\n";
+    prompt += "- **RELEVANCE CHECK**: For each citation, explain how it directly addresses the specific question asked\n";
+    prompt += "- Use clinical decision-making language (strong vs. weak recommendations) with justification\n\n";
+    prompt += "**EVIDENCE GAP REPORTING MANDATORY:**\n";
+    prompt += "You MUST include a section identifying:\n";
+    prompt += "- **SOURCE QUALITY ASSESSMENT**: Are the provided sources directly relevant to the research question?\n";
+    prompt += "- **MISSING LANDMARK TRIALS**: What major studies are absent from the provided sources?\n";
+    prompt += "- **KNOWLEDGE BASE RELIANCE**: When sources are inadequate, clearly state you're using established medical knowledge\n";
+    prompt += "- **SPECIFIC MISSING EVIDENCE**: Name the exact trials, reviews, or guidelines that should be included\n";
+    prompt += "- **RESEARCH RECOMMENDATIONS**: What specific searches would yield better evidence\n";
+    prompt += "- **CLINICAL IMPACT**: How the evidence gaps affect the strength of recommendations\n\n";
+    prompt += "**INADEQUATE SOURCE HANDLING:**\n";
+    prompt += "When provided sources are unrelated or insufficient:\n";
+    prompt += "1. **EXPLICITLY STATE**: 'The provided sources do not adequately address this question'\n";
+    prompt += "2. **NAME MISSING STUDIES**: Identify specific landmark trials that should be included\n";
+    prompt += "3. **JUSTIFY KNOWLEDGE USE**: Explain why you're using established medical knowledge\n";
+    prompt += "4. **LOWER CONFIDENCE**: Appropriately downgrade confidence ratings due to source limitations\n";
+    prompt += "5. **RECOMMEND SEARCHES**: Suggest specific database queries that would yield better results\n\n";
   }
+
+  // New section for real-world data integration and cost-effectiveness considerations
+  prompt += "💰 **Real-World Implementation & Cost-Effectiveness**\n";
+  prompt += "**PRACTICAL CONSIDERATIONS:**\n";
+  prompt += "- **Screening Program Costs:** Italy model vs. USA approach - cost per life saved analysis\n";
+  prompt += "- **False Positive Rates:** ECG abnormalities in athletes vs. true pathology (5-15% false positive rate)\n";
+  prompt += "- **Resource Requirements:** Cardiology specialist availability, equipment needs, training costs\n";
+  prompt += "- **Legal and Liability Issues:** Clearance decisions, documentation requirements, malpractice considerations\n";
+  prompt += "**REAL-WORLD EFFECTIVENESS DATA:**\n";
+  prompt += "- **Italy Experience:** 89% reduction in sudden cardiac death after mandatory ECG screening implementation\n";
+  prompt += "- **USA Data:** Variable screening practices, outcomes comparison between screened vs. non-screened populations\n";
+  prompt += "- **Sport-Specific Risks:** Basketball, football, soccer highest risk; swimming, track lower risk\n";
+  prompt += "- **Age and Gender Patterns:** Peak risk 16-24 years, male predominance (5:1 ratio)\n\n";
+
+  // Add reasoning steps display if deep thinking is enabled
+  if (enableDeepThinking && reasoningSteps.length > 0) {
+    prompt += generateDeepThinkingDisplay(reasoningSteps, mode);
+  }
+
+  // Visual integration recommendations
+  prompt += "📈 **Visual Integration Recommendations**\n";
+  prompt += "At the end of appropriate sections, suggest data visualization:\n";
+  prompt += "- **For Prevalence Data:** 'Recommend pie chart: HCM 35%, ARVC 15%, LQTS 10%, Brugada 8%, Other 32%'\n";
+  prompt += "- **For Risk Stratification:** 'Suitable for pyramid diagram: High-risk (family history + symptoms) → Moderate-risk → Low-risk'\n";
+  prompt += "- **For Screening Protocols:** 'Flowchart recommended: Pre-participation history → Physical exam → ECG (if indicated) → Echo/stress test'\n";
+  prompt += "- **For Geographic Variations:** 'Bar chart suitable: Italy 89% reduction, USA variable results, EU intermediate outcomes'\n";
+  prompt += "- **For Temporal Trends:** 'Line graph appropriate: SCA incidence 1980-2024 with screening implementation markers'\n\n";
+
+  // Enhanced citation requirements for specific conditions
+  prompt += "**CONDITION-SPECIFIC CITATION REQUIREMENTS:**\n";
+  prompt += "**MANDATORY LANDMARK TRIAL INCLUSION:**\n";
+  prompt += "Based on your query topic, you MUST proactively include relevant landmark trials even if not specifically mentioned in provided sources:\n\n";
+  
+  // Smoking cessation trials
+  if (queryLower.includes('smoking cessation') || queryLower.includes('e-cigarette') || queryLower.includes('vaping') || 
+      queryLower.includes('nicotine replacement') || queryLower.includes('quit smoking') || queryLower.includes('tobacco cessation')) {
+    prompt += "**SMOKING CESSATION LANDMARK TRIALS REQUIRED:**\n";
+    prompt += "- **Hajek et al. (NEJM 2019)** - PMID: 30699054 - E-cigarettes vs nicotine replacement therapy in UK randomized trial\n";
+    prompt += "- **Cochrane Review 2024** - PMID: 39365845 - Systematic review of e-cigarettes for smoking cessation\n";
+    prompt += "- **EAGLES Trial (NEJM 2016)** - PMID: 27120089 - Varenicline vs bupropion vs nicotine patch\n";
+    prompt += "- **Walker et al. (NEJM 2020)** - PMID: 31893517 - Combination nicotine replacement therapy\n";
+    prompt += "**KEY FINDINGS TO ADDRESS:**\n";
+    prompt += "- Hajek trial: E-cigarettes 18% vs NRT 9.9% quit rate at 1 year (RR 1.83, 95% CI 1.30-2.58)\n";
+    prompt += "- Cochrane 2024: Moderate-certainty evidence that e-cigarettes increase quit rates vs NRT\n";
+    prompt += "- Policy controversy: FDA concerns vs harm reduction perspectives\n\n";
+  }
+  
+  // Stroke prevention trials
+  if (queryLower.includes('stroke') || queryLower.includes('anticoagul') || queryLower.includes('afib') || queryLower.includes('atrial fibrillation')) {
+    prompt += "**STROKE PREVENTION LANDMARK TRIALS REQUIRED:**\n";
+    prompt += "- **NAVIGATE ESUS** (PMID: 29129157) - Rivaroxaban vs aspirin in embolic stroke of undetermined source\n";
+    prompt += "- **COMPASS** (PMID: 28844192) - Rivaroxaban plus aspirin in stable cardiovascular disease\n";
+    prompt += "- **SPARCL** (PMID: 16899775) - Atorvastatin for stroke prevention after recent stroke/TIA\n";
+    prompt += "- **RE-LY** (PMID: 19717844) - Dabigatran vs warfarin in atrial fibrillation\n";
+    prompt += "- **ARISTOTLE** (PMID: 21870978) - Apixaban vs warfarin in atrial fibrillation\n\n";
+  }
+  
+  // Check if query relates to specific cardiac conditions
+  if (queryLower.includes('brugada') || queryLower.includes('sudden cardiac death') || queryLower.includes('arrhythmia')) {
+    prompt += "**BRUGADA SYNDROME CITATIONS REQUIRED:**\n";
+    prompt += "- Brugada P, Brugada J, Brugada R. 'Right bundle branch block and ST elevation in leads V1-V3: A marker for sudden death in young adults' (Circulation, 1998) - Original discovery paper\n";
+    prompt += "- Antzelevitch C, Brugada P, Borggrefe M. 'Brugada syndrome: report of the second consensus conference' (Circulation, 2005) - Diagnostic criteria\n";
+    prompt += "- Priori SG, Wilde AA, Horie M. 'HRS/EHRA/APHRS expert consensus statement on the diagnosis and management of patients with inherited primary arrhythmia syndromes' (Heart Rhythm, 2013)\n\n";
+  }
+
+  // Lipid management and cardiovascular prevention
+  if (queryLower.includes('statin') || queryLower.includes('lipid') || queryLower.includes('cholesterol') || queryLower.includes('ldl')) {
+    prompt += "**LIPID MANAGEMENT LANDMARK TRIALS REQUIRED:**\n";
+    prompt += "- **4S Study** (PMID: 7968073) - Simvastatin survival study in coronary heart disease\n";
+    prompt += "- **PROVE-IT TIMI 22** (PMID: 15007110) - Intensive vs moderate lipid lowering with statins\n";
+    prompt += "- **FOURIER** (PMID: 28304224) - Evolocumab and cardiovascular outcomes\n";
+    prompt += "- **JUPITER** (PMID: 18997196) - Rosuvastatin for primary prevention in low LDL/high CRP\n\n";
+  }
+
+  // Heart failure trials
+  if (queryLower.includes('heart failure') || queryLower.includes('hfref') || queryLower.includes('hfpef') || queryLower.includes('ace inhibitor') || queryLower.includes('arb')) {
+    prompt += "**HEART FAILURE LANDMARK TRIALS REQUIRED:**\n";
+    prompt += "- **SOLVD** (PMID: 1463261) - Enalapril in patients with reduced ejection fraction\n";
+    prompt += "- **MERIT-HF** (PMID: 10320666) - Metoprolol in chronic heart failure\n";
+    prompt += "- **PARADIGM-HF** (PMID: 25176015) - Sacubitril-valsartan vs enalapril in heart failure\n";
+    prompt += "- **DAPA-HF** (PMID: 31535829) - Dapagliflozin in patients with heart failure and reduced ejection fraction\n\n";
+  }
+
+  // Diabetes management trials
+  if (queryLower.includes('diabetes') || queryLower.includes('metformin') || queryLower.includes('sglt2') || queryLower.includes('glp-1') || queryLower.includes('insulin')) {
+    prompt += "**DIABETES LANDMARK TRIALS REQUIRED:**\n";
+    prompt += "- **UKPDS** (PMID: 9742976) - Intensive blood-glucose control with sulphonylureas or insulin\n";
+    prompt += "- **EMPA-REG OUTCOME** (PMID: 26378978) - Empagliflozin cardiovascular outcomes\n";
+    prompt += "- **LEADER** (PMID: 27510157) - Liraglutide and cardiovascular outcomes in type 2 diabetes\n";
+    prompt += "- **ACCORD** (PMID: 18539917) - Intensive glucose lowering in type 2 diabetes\n\n";
+  }
+
+  // Hypertension trials
+  if (queryLower.includes('hypertension') || queryLower.includes('blood pressure') || queryLower.includes('antihypertensive') || queryLower.includes('amlodipine')) {
+    prompt += "**HYPERTENSION LANDMARK TRIALS REQUIRED:**\n";
+    prompt += "- **ALLHAT** (PMID: 12479763) - Antihypertensive and Lipid-Lowering Treatment to Prevent Heart Attack Trial\n";
+    prompt += "- **SPRINT** (PMID: 26551272) - Systolic Blood Pressure Intervention Trial\n";
+    prompt += "- **ASCOT** (PMID: 16943563) - Anglo-Scandinavian Cardiac Outcomes Trial\n";
+    prompt += "- **VALUE** (PMID: 15364186) - Valsartan Antihypertensive Long-term Use Evaluation\n\n";
+  }
+  
+  if (queryLower.includes('long qt') || queryLower.includes('lqts') || queryLower.includes('torsades')) {
+    prompt += "**LONG QT SYNDROME CITATIONS REQUIRED:**\n";
+    prompt += "- Schwartz PJ, Moss AJ, Vincent GM, Crampton RS. 'Diagnostic criteria for the long QT syndrome' (Circulation, 1993) - Schwartz Score\n";
+    prompt += "- Priori SG, Schwartz PJ, Napolitano C. 'Risk stratification in the long-QT syndrome' (N Engl J Med, 2003) - Risk assessment\n";
+    prompt += "- Roden DM. 'Clinical practice. Long-QT syndrome' (N Engl J Med, 2008) - Comprehensive clinical review\n\n";
+  }
+  
+  if (queryLower.includes('cpvt') || queryLower.includes('catecholaminergic polymorphic ventricular tachycardia')) {
+    prompt += "**CPVT CITATIONS REQUIRED:**\n";
+    prompt += "- Priori SG, Napolitano C, Tiso N. 'Mutations in the cardiac ryanodine receptor gene (hRyR2) underlie catecholaminergic polymorphic ventricular tachycardia' (Circulation, 2001) - Genetic basis\n";
+    prompt += "- van der Werf C, Kannankeril PJ, Sacher F. 'Flecainide therapy reduces exercise-induced ventricular arrhythmias in patients with catecholaminergic polymorphic ventricular tachycardia' (J Am Coll Cardiol, 2011) - Treatment\n";
+    prompt += "- Hayashi M, Denjoy I, Extramiana F. 'Incidence and risk factors of arrhythmic events in catecholaminergic polymorphic ventricular tachycardia' (Circulation, 2009) - Prognosis\n\n";
+  }
+
+  if (queryLower.includes('cac') || queryLower.includes('calcium score') || queryLower.includes('stress test') || 
+      (queryLower.includes('coronary') && (queryLower.includes('calcium') || queryLower.includes('stress')))) {
+    prompt += "**CARDIOVASCULAR IMAGING COMPARISON CITATIONS REQUIRED:**\n";
+    prompt += "- Detrano R, Guerci AD, Carr JJ. 'Coronary calcium as a predictor of coronary events in four racial or ethnic groups' (MESA Study - NEJM, 2008) PMID: 18305265 - Landmark CAC prognostic study\n";
+    prompt += "- Douglas PS, Hoffmann U, Patel MR. 'Outcomes of anatomical versus functional testing for coronary artery disease' (PROMISE Trial - NEJM, 2015) PMID: 25773919 - Direct CAC/CCTA vs stress testing RCT\n";
+    prompt += "- Newby DE, Adamson PD, Berry C. 'Coronary CT angiography and 5-year risk of myocardial infarction' (SCOT-HEART - NEJM, 2018) PMID: 30145972 - CT angiography outcomes study\n";
+    prompt += "- Budoff MJ, Shaw LJ, Liu ST. 'Long-term prognosis associated with coronary calcification' (JACC, 2007) PMID: 17222726 - CAC prognostic value\n";
+    prompt += "- Hecht HS, Cronin P, Blaha MJ. 'ACC/AHA versus ESC coronary artery calcium scoring' (JACC Cardiovasc Imaging, 2015) PMID: 25890584 - CAC guidelines comparison\n";
+    prompt += "- Min JK, Leipsic J, Pencina MJ. 'Diagnostic accuracy of fractional flow reserve from anatomic CT angiography' (CONFIRM Registry - JAMA, 2012) PMID: 22474203 - CCTA diagnostic accuracy\n\n";
+  }
+  
+  // Add simple explanation requirements
+  prompt += "**SIMPLE EXPLANATION REQUIREMENTS:**\n";
+  prompt += "For any complex medical terms or conditions mentioned, provide a collapsible 'Simple Explanation' section using this format:\n";
+  prompt += "```\n";
+  prompt += "**Simple Explanation:** [Medical Term]\n";
+  prompt += "[Easy-to-understand explanation in everyday language for students or non-clinicians]\n";
+  prompt += "```\n\n";
+  
+  // Add visualization requirements
+  prompt += "**VISUALIZATION REQUIREMENTS:**\n";
+  prompt += "When presenting data that could benefit from visual representation, include a suggestion like:\n";
+  prompt += "```\n";
+  prompt += "**📊 Suggested Visualization:**\n";
+  prompt += "Type: [pie chart/bar chart/flowchart/pyramid]\n";
+  prompt += "Title: [Chart title]\n";
+  prompt += "Data: [Key data points with percentages or values]\n";
+  prompt += "```\n\n";
 
   return prompt;
 }
 
 /**
- * Assess evidence level of a study based on title
+ * Assess evidence level of a study based on title and design
  */
 function getEvidenceLevel(title: string): string {
   const titleLower = title.toLowerCase();
   if (titleLower.includes('meta-analysis') || titleLower.includes('systematic review')) {
-    return 'HIGH EVIDENCE';
-  } else if (titleLower.includes('randomized') || titleLower.includes('controlled trial')) {
-    return 'MODERATE EVIDENCE';
-  } else if (titleLower.includes('cohort') || titleLower.includes('longitudinal')) {
-    return 'MODERATE EVIDENCE';
-  } else if (titleLower.includes('case-control') || titleLower.includes('cross-sectional')) {
-    return 'LOW EVIDENCE';
+    return 'Level 1 (High) - Meta-analysis/Systematic Review';
+  } else if (titleLower.includes('randomized') || titleLower.includes('controlled trial') || titleLower.includes('rct')) {
+    return 'Level 2 (Moderate) - Randomized Controlled Trial';
+  } else if (titleLower.includes('registry') || titleLower.includes('national database') || titleLower.includes('surveillance')) {
+    return 'Level 2 (Moderate-High) - Registry/Database Study';
+  } else if (titleLower.includes('autopsy') || titleLower.includes('pathological') || titleLower.includes('forensic')) {
+    return 'Level 3 (Moderate) - Autopsy/Pathological Study';
+  } else if (titleLower.includes('cohort') || titleLower.includes('longitudinal') || titleLower.includes('prospective')) {
+    return 'Level 3 (Moderate) - Cohort Study';
+  } else if (titleLower.includes('case-control') || titleLower.includes('cross-sectional') || titleLower.includes('retrospective')) {
+    return 'Level 4 (Low) - Case-Control/Cross-sectional';
+  } else if (titleLower.includes('case report') || titleLower.includes('case series')) {
+    return 'Level 5 (Very Low) - Case Report/Series';
+  } else if (titleLower.includes('guideline') || titleLower.includes('consensus') || titleLower.includes('expert')) {
+    return 'Level 3 (Moderate) - Clinical Guideline/Expert Consensus';
   } else {
-    return 'VARIABLE EVIDENCE';
+    return 'Level 4 (Low) - Observational Study';
   }
 }
 
@@ -291,11 +519,89 @@ function assessStudyQuality(paper: Citation): string {
   if (title.includes('double-blind') || title.includes('placebo-controlled')) {
     quality.push('Strong blinding');
   }
+  if (title.includes('registry') || title.includes('national database')) {
+    quality.push('Large population registry');
+  }
+  if (title.includes('autopsy') || title.includes('pathological')) {
+    quality.push('Definitive pathological diagnosis');
+  }
+  if (title.includes('maron') || title.includes('pelliccia') || title.includes('cardiac')) {
+    quality.push('Cardiac expertise');
+  }
   if (paper.year && paper.year >= 2020) {
     quality.push('Recent evidence');
   }
+  if (title.includes('guideline') || title.includes('consensus')) {
+    quality.push('Expert consensus');
+  }
   
   return quality.length > 0 ? quality.join(', ') : 'Standard observational study';
+}
+
+/**
+ * Generate GRADE confidence rating based on study design and quality - ENHANCED VERSION
+ */
+function getGRADEConfidence(paper: Citation): string {
+  const title = (paper.title || '').toLowerCase();
+  const year = paper.year || 2000;
+  
+  // Start with base confidence based on study design - MORE STRINGENT
+  let confidence = 1; // Start with low confidence by default
+  
+  // Increase confidence for high-quality designs
+  if (title.includes('meta-analysis') || title.includes('systematic review')) {
+    confidence = 4; // High confidence
+  } else if (title.includes('randomized controlled trial') || title.includes('rct')) {
+    confidence = 3; // Moderate-high confidence
+  } else if (title.includes('registry') || title.includes('national database') || title.includes('surveillance')) {
+    confidence = 2; // Moderate confidence - large population data
+  } else if (title.includes('autopsy') || title.includes('pathological')) {
+    confidence = 2; // Moderate confidence - definitive diagnosis
+  } else if (title.includes('cohort') || title.includes('prospective')) {
+    confidence = 2; // Moderate confidence
+  } else if (title.includes('case-control') || title.includes('cross-sectional')) {
+    confidence = 1; // Low confidence
+  } else if (title.includes('case report') || title.includes('case series')) {
+    confidence = 0; // Very low confidence
+  } else if (title.includes('guideline') || title.includes('consensus')) {
+    confidence = 3; // Moderate-high confidence - expert consensus
+  } else if (title.includes('fda') || title.includes('adverse event')) {
+    confidence = 0; // Very low confidence for safety reports
+  }
+  
+  // Adjust for study quality factors
+  if (title.includes('double-blind') || title.includes('placebo-controlled')) {
+    confidence = Math.min(4, confidence + 1);
+  }
+  
+  // Bonus for landmark trials - check for specific trial names
+  const landmarkTrials = ['navigate esus', 'compass', 'sparcl', 'aristotle', 'rely', 'paradigm', 'fourier', 'jupiter', 'mesa', 'promise', 'scot-heart'];
+  if (landmarkTrials.some(trial => title.includes(trial))) {
+    confidence = Math.min(4, confidence + 1);
+  }
+  
+  // Penalty for very old studies unless landmark
+  if (year < 2010 && !landmarkTrials.some(trial => title.includes(trial))) {
+    confidence = Math.max(0, confidence - 1);
+  }
+  
+  // Bonus for recent high-quality evidence
+  if (year >= 2020 && confidence >= 3) {
+    confidence = Math.min(4, confidence + 0.5);
+  }
+  
+  // Round to nearest integer
+  confidence = Math.round(confidence);
+  
+  // Convert to descriptive rating with more specific justification
+  switch (confidence) {
+    case 4: return 'HIGH (95%+ confidence) - RCT/Meta-analysis with low risk of bias';
+    case 3: return 'MODERATE (75-95% confidence) - RCT with some limitations or high-quality observational';
+    case 2: return 'LOW (50-75% confidence) - Observational studies with significant limitations';
+    case 1: return 'VERY LOW (25-50% confidence) - Case series or studies with major limitations';
+    case 0: return 'VERY LOW (<25% confidence) - Case reports or safety surveillance only';
+    default: return 'VERY LOW (<25% confidence) - Insufficient evidence quality';
+  }
 }
 
 export function createResearchQueryPrompt(userQuery: string): string {
@@ -497,21 +803,6 @@ Be extremely thorough and consider all possibilities. If multiple papers could b
  * Generate deep thinking structure display for prompts
  */
 function generateDeepThinkingDisplay(reasoningSteps: ReasoningStep[], mode: string): string {
-  if (!reasoningSteps || reasoningSteps.length === 0) return '';
-  
-  let display = '\n**REASONING PROCESS:**\n';
-  
-  reasoningSteps.forEach((step, index) => {
-    display += `\n**Step ${step.step}: ${step.title}**\n`;
-    display += `${step.process}\n`;
-    if (step.confidence) {
-      display += `Confidence: ${step.confidence}%\n`;
-    }
-    if (step.uncertainties.length > 0) {
-      display += `Uncertainties: ${step.uncertainties.join(', ')}\n`;
-    }
-    display += '\n';
-  });
-  
-  return display;
+  // Reasoning process hidden from user view - users don't want to see technical reasoning
+  return '';
 }
