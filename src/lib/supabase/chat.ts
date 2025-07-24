@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/client';
 import { Message } from '@/lib/types/chat';
 
-export type ChatMode = 'research' | 'doctor' | 'source-finder';
+export type ChatMode = 'research' | 'doctor';
 
 export interface Conversation {
   id: string;
@@ -199,13 +199,13 @@ class ChatClient {
 
       if (error) {
         console.error('ChatClient: Error fetching conversations:', error);
-        return { research: [], doctor: [], 'source-finder': [] };
+        return { research: [], doctor: [] };
       }
 
       // If no data, return empty
       if (!data || data.length === 0) {
         console.log(`[${timestamp}] ChatClient: No messages found for user:`, userId);
-        return { research: [], doctor: [], 'source-finder': [] };
+        return { research: [], doctor: [] };
       }
 
       // Group by session_id
@@ -221,8 +221,7 @@ class ChatClient {
       // Convert to conversations
       const result: { [mode in ChatMode]: Conversation[] } = {
         research: [],
-        doctor: [],
-        'source-finder': []
+        doctor: []
       };
 
       for (const [sessionId, messages] of sessionGroups.entries()) {
@@ -231,7 +230,11 @@ class ChatClient {
         const lastMessage = messages[0]; // Since we ordered by created_at DESC
         
         if (firstUserMessage) {
-          const mode = firstUserMessage.mode as ChatMode;
+          let mode = firstUserMessage.mode as ChatMode;
+          // Convert legacy source-finder mode to research
+          if (mode === 'source-finder' as any) {
+            mode = 'research';
+          }
           const title = firstUserMessage.content?.slice(0, 50) + (firstUserMessage.content?.length > 50 ? '...' : '') || 'New Conversation';
           const lastMessageContent = lastMessage.content?.slice(0, 100) + (lastMessage.content?.length > 100 ? '...' : '') || 'No content';
           
@@ -251,7 +254,7 @@ class ChatClient {
       return result;
     } catch (error) {
       console.error('Error fetching conversations (catch):', error);
-      return { research: [], doctor: [], 'source-finder': [] };
+      return { research: [], doctor: [] };
     }
   }
 

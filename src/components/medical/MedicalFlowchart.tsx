@@ -5,9 +5,10 @@ import { ArrowDown, ArrowRight, Heart, Brain, Pill, Activity, Stethoscope, Eye, 
 
 interface MedicalFlowchartProps {
   content: string;
+  patientFriendly?: boolean;
 }
 
-export function MedicalFlowchart({ content }: MedicalFlowchartProps) {
+export function MedicalFlowchart({ content, patientFriendly = false }: MedicalFlowchartProps) {
   // Detect medical condition and generate appropriate flowchart
   const detectMedicalCondition = (content: string) => {
     const lowerContent = content.toLowerCase();
@@ -280,9 +281,14 @@ export function MedicalFlowchart({ content }: MedicalFlowchartProps) {
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           <flowchartData.icon className={`h-5 w-5 text-${flowchartData.color}-600`} />
-          {flowchartData.title}
+          {patientFriendly ? `Understanding ${flowchartData.title}` : flowchartData.title}
         </CardTitle>
-        <p className="text-sm text-gray-600">Evidence-based clinical approach and management pathway</p>
+        <p className="text-sm text-gray-600">
+          {patientFriendly 
+            ? "A visual guide to help you understand your care plan" 
+            : "Evidence-based clinical approach and management pathway"
+          }
+        </p>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -292,8 +298,22 @@ export function MedicalFlowchart({ content }: MedicalFlowchartProps) {
             <div key={index}>
               <FlowStep
                 icon={pathway.icon}
-                title={pathway.title}
-                description={pathway.description}
+                title={patientFriendly ? pathway.title.replace(/Assessment|Pharmacotherapy|Diagnosis/, (match) => {
+                  switch(match) {
+                    case 'Assessment': return 'Evaluation';
+                    case 'Pharmacotherapy': return 'Medication Treatment';
+                    case 'Diagnosis': return 'Testing';
+                    default: return match;
+                  }
+                }) : pathway.title}
+                description={patientFriendly ? pathway.description.replace(/HbA1c|BP|antiplatelet/gi, (match) => {
+                  switch(match.toLowerCase()) {
+                    case 'hba1c': return 'blood sugar test';
+                    case 'bp': return 'blood pressure';
+                    case 'antiplatelet': return 'blood thinner';
+                    default: return match;
+                  }
+                }) : pathway.description}
                 medications={pathway.medications}
                 className={pathway.className}
               />
@@ -352,39 +372,47 @@ export function MedicalFlowchart({ content }: MedicalFlowchartProps) {
           
           {/* Implementation Timeline */}
           <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h5 className="font-semibold text-sm mb-2 text-blue-800">Implementation Timeline:</h5>
+            <h5 className="font-semibold text-sm mb-2 text-blue-800">
+              {patientFriendly ? "Your Care Timeline:" : "Implementation Timeline:"}
+            </h5>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
               <div>
-                <p className="font-medium text-blue-700">Immediate (0-24h)</p>
+                <p className="font-medium text-blue-700">
+                  {patientFriendly ? "Right Now (Today)" : "Immediate (0-24h)"}
+                </p>
                 <p className="text-blue-600">
-                  {condition === 'stroke' && "Acute antiplatelet, BP control"}
-                  {condition === 'heartAttack' && "Antiplatelet, anticoagulation"}
-                  {condition === 'hypertension' && "Confirm diagnosis, assess risk"}
-                  {condition === 'diabetes' && "Glucose monitoring, ketone check"}
-                  {condition === 'asthma' && "Peak flow, rescue inhaler"}
-                  {condition === 'general' && "Initial assessment, stabilization"}
+                  {condition === 'stroke' && (patientFriendly ? "Start protective medications, monitor blood pressure" : "Acute antiplatelet, BP control")}
+                  {condition === 'heartAttack' && (patientFriendly ? "Blood thinners to protect your heart" : "Antiplatelet, anticoagulation")}
+                  {condition === 'hypertension' && (patientFriendly ? "Confirm high blood pressure, check your risk" : "Confirm diagnosis, assess risk")}
+                  {condition === 'diabetes' && (patientFriendly ? "Check blood sugar levels regularly" : "Glucose monitoring, ketone check")}
+                  {condition === 'asthma' && (patientFriendly ? "Use your rescue inhaler, check breathing" : "Peak flow, rescue inhaler")}
+                  {condition === 'general' && (patientFriendly ? "Initial check-up and immediate care" : "Initial assessment, stabilization")}
                 </p>
               </div>
               <div>
-                <p className="font-medium text-blue-700">Short-term (1-7 days)</p>
+                <p className="font-medium text-blue-700">
+                  {patientFriendly ? "This Week" : "Short-term (1-7 days)"}
+                </p>
                 <p className="text-blue-600">
-                  {condition === 'stroke' && "Initiate long-term prevention"}
-                  {condition === 'heartAttack' && "Secondary prevention drugs"}
-                  {condition === 'hypertension' && "Start antihypertensive"}
-                  {condition === 'diabetes' && "Metformin initiation"}
-                  {condition === 'asthma' && "Controller therapy start"}
-                  {condition === 'general' && "Treatment initiation"}
+                  {condition === 'stroke' && (patientFriendly ? "Start long-term prevention medications" : "Initiate long-term prevention")}
+                  {condition === 'heartAttack' && (patientFriendly ? "Begin heart protection medications" : "Secondary prevention drugs")}
+                  {condition === 'hypertension' && (patientFriendly ? "Start blood pressure medication" : "Start antihypertensive")}
+                  {condition === 'diabetes' && (patientFriendly ? "Begin diabetes medication (usually Metformin)" : "Metformin initiation")}
+                  {condition === 'asthma' && (patientFriendly ? "Start daily controller medication" : "Controller therapy start")}
+                  {condition === 'general' && (patientFriendly ? "Begin your treatment plan" : "Treatment initiation")}
                 </p>
               </div>
               <div>
-                <p className="font-medium text-blue-700">Long-term (ongoing)</p>
+                <p className="font-medium text-blue-700">
+                  {patientFriendly ? "Ongoing Care" : "Long-term (ongoing)"}
+                </p>
                 <p className="text-blue-600">
-                  {condition === 'stroke' && "Risk factor modification"}
-                  {condition === 'heartAttack' && "Lifestyle changes, monitoring"}
-                  {condition === 'hypertension' && "BP monitoring, titration"}
-                  {condition === 'diabetes' && "HbA1c monitoring, complications"}
-                  {condition === 'asthma' && "Asthma control assessment"}
-                  {condition === 'general' && "Ongoing monitoring, adjustment"}
+                  {condition === 'stroke' && (patientFriendly ? "Healthy lifestyle changes, regular check-ups" : "Risk factor modification")}
+                  {condition === 'heartAttack' && (patientFriendly ? "Heart-healthy living, regular monitoring" : "Lifestyle changes, monitoring")}
+                  {condition === 'hypertension' && (patientFriendly ? "Regular blood pressure checks, medication adjustments" : "BP monitoring, titration")}
+                  {condition === 'diabetes' && (patientFriendly ? "Regular blood sugar monitoring, complication prevention" : "HbA1c monitoring, complications")}
+                  {condition === 'asthma' && (patientFriendly ? "Monitor breathing, adjust medications as needed" : "Asthma control assessment")}
+                  {condition === 'general' && (patientFriendly ? "Regular follow-ups, treatment adjustments" : "Ongoing monitoring, adjustment")}
                 </p>
               </div>
             </div>

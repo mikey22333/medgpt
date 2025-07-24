@@ -69,7 +69,7 @@ export default function CrossRefDemo() {
     setError('');
     
     try {
-      const response = await fetch('/api/research/medical', {
+      const response = await fetch('/api/research', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

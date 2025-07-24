@@ -25,7 +25,7 @@ export interface Citation {
   title: string;
   authors: string[];
   journal: string;
-  year: number;
+  year: string;
   pmid?: string;
   pmcid?: string;
   doi?: string;
@@ -35,7 +35,7 @@ export interface Citation {
   studyType?: 'RCT' | 'Meta-Analysis' | 'Systematic Review' | 'Guideline' | 'Observational' | 'Case Study' | 'Review' | 'FDA Label' | 'FAERS Report' | 'FDA Recall';
   confidenceScore?: number; // 0-100 based on recency, study type, journal impact
   evidenceLevel?: 'High' | 'Moderate' | 'Low';
-  source?: 'PubMed' | 'Europe PMC' | 'FDA Drug Labels' | 'FDA FAERS' | 'FDA Recalls' | 'Semantic Scholar' | 'CrossRef' | 'Fallback';
+  source?: 'PubMed' | 'Europe PMC' | 'FDA Drug Labels' | 'FDA FAERS' | 'FDA Recalls' | 'Semantic Scholar' | 'CrossRef' | 'OpenAlex' | 'Fallback';
   meshTerms?: string[];
   isGuideline?: boolean;
   guidelineOrg?: 'WHO' | 'NICE' | 'FDA' | 'AAP' | 'AHA' | 'ESC' | 'CDC' | 'Other';

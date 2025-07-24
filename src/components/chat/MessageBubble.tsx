@@ -9,8 +9,9 @@ import { StrokeStratificationGuide } from "../medical/StrokeStratificationGuide"
 import { ComprehensiveStrokeGuide } from "../medical/ComprehensiveStrokeGuide";
 import { PatientEducationCard } from "../medical/PatientEducationCard";
 import { PatientEducationProcessor } from "../medical/PatientEducationProcessor";
-import { TLDRSummary, GuidelineQuote, LandmarkTrial } from "../medical/EnhancedMedicalComponents";
+import { GuidelineQuote, LandmarkTrial } from "../medical/EnhancedMedicalComponents";
 import { MedicalFlowchart } from "../medical/MedicalFlowchart";
+import { ProbabilityChart } from "../medical/ProbabilityChart";
 import { ResearchGapAnalysis } from "../medical/ResearchGapAnalysis";
 import { MissingLandmarkTrials } from "../medical/MissingLandmarkTrials";
 import { cn } from "@/lib/utils";
@@ -21,866 +22,347 @@ import remarkGfm from "remark-gfm";
 interface MessageBubbleProps {
   message: Message;
   mode?: 'research' | 'doctor' | 'source-finder';
+  allMessages?: Message[]; // All messages in the conversation for context
+  showReasoning?: boolean; // Optional prop for showing reasoning steps
 }
 
-export function MessageBubble({ message, mode = 'research' }: MessageBubbleProps) {
+export function MessageBubble({ message, mode = 'research', allMessages = [], showReasoning = true }: MessageBubbleProps) {
   const isUser = message.role === "user";
 
-  // Parse content for special sections
-  const parseSpecialSections = (content: string) => {
-    const sections = {
-      simpleExplanations: [] as Array<{ term: string; explanation: string }>,
-      visualizations: [] as Array<any>,
-      clinicalSummary: '' as string,
-      mainContent: content,
-      medicalContentAnalysis: {
-        needsGuidelines: false,
-        needsRCTs: false,
-        needsMedications: false,
-        needsStratification: false,
-        missingInterventions: [] as string[],
-        suggestions: [] as string[]
-      }
-    };
-
-    // Extract Simple Explanations - Updated patterns to match actual format
-    const simpleExplanationPatterns = [
-      /\*\*Simple Explanation:\*\* ([^\n]+)\n([^*]+?)(?=\*\*|$)/g,
-      /Simple Explanation:\s*\n\s*\*\*Simple Explanation:\*\* ([^\n]+)\n([^*]+?)(?=\*\*|$)/g,
-      /Simple Explanation:\s*([^*\n]+?)\*\*Simple Explanation:\*\* ([^\n]+)\n([^*]+?)(?=\*\*|$)/g
-    ];
+  // Find the user query that preceded this assistant response
+  const getUserQueryForResponse = (): string | undefined => {
+    if (message.role === 'user') return message.content;
     
-    let match;
-    for (const regex of simpleExplanationPatterns) {
-      regex.lastIndex = 0;
-      while ((match = regex.exec(content)) !== null) {
-        let term = '';
-        let explanation = '';
-        
-        if (match.length === 3) {
-          // Standard format: **Simple Explanation:** term \n explanation
-          term = match[1].trim();
-          explanation = match[2].trim();
-        } else if (match.length === 4) {
-          // Complex format with header
-          term = match[2].trim();
-          explanation = match[3].trim();
-        }
-        
-        if (term && explanation) {
-          sections.simpleExplanations.push({ term, explanation });
-          sections.mainContent = sections.mainContent.replace(match[0], '');
-          console.log('Extracted simple explanation:', { term, explanation: explanation.substring(0, 50) + '...' });
+    const currentIndex = allMessages.findIndex(msg => msg.id === message.id);
+    if (currentIndex > 0) {
+      // Look for the most recent user message before this assistant response
+      for (let i = currentIndex - 1; i >= 0; i--) {
+        if (allMessages[i].role === 'user') {
+          return allMessages[i].content;
         }
       }
     }
-
-    // Extract Clinical Summary (TL;DR) - Using substring approach that works
-    // Find the TL;DR section and extract content until Evidence Sources or 🧬
-    const tldrIndex = content.indexOf('TL;DR');
-    const evidenceIndex = Math.min(
-      content.indexOf('🧬') !== -1 ? content.indexOf('🧬') : Infinity,
-      content.indexOf('Evidence Sources') !== -1 ? content.indexOf('Evidence Sources') : Infinity
-    );
-    
-    if (tldrIndex !== -1 && evidenceIndex !== Infinity && evidenceIndex > tldrIndex) {
-      const extracted = content.substring(tldrIndex, evidenceIndex).trim();
-      const bulletStart = extracted.indexOf('•');
-      if (bulletStart !== -1) {
-        sections.clinicalSummary = extracted.substring(bulletStart);
-        // Remove the entire clinical summary section from main content more aggressively
-        const summaryStart = Math.max(0, content.indexOf('📋') !== -1 ? content.indexOf('📋') : tldrIndex - 20);
-        const summaryEnd = evidenceIndex;
-        const summarySection = content.substring(summaryStart, summaryEnd);
-        sections.mainContent = sections.mainContent.replace(summarySection, '').trim();
-        console.log('Successfully extracted clinical summary:', sections.clinicalSummary.substring(0, 100) + '...');
-      }
-    }
-    
-    // Fallback regex patterns if substring approach fails
-    if (!sections.clinicalSummary) {
-      const summaryRegexes = [
-        /📋\s*Clinical Summary \(TL;DR\)\s*(.*?)(?=🧬|Evidence Sources)/g,
-        /Clinical Summary \(TL;DR\)\s*(.*?)(?=🧬|Evidence Sources)/g,
-        /TL;DR\)\s*(.*?)(?=🧬|Evidence Sources)/g
-      ];
-      
-      for (const regex of summaryRegexes) {
-        regex.lastIndex = 0;
-        while ((match = regex.exec(content)) !== null) {
-          if (!sections.clinicalSummary) {
-            sections.clinicalSummary = match[1].trim();
-            sections.mainContent = sections.mainContent.replace(match[0], '');
-            console.log('Regex extracted clinical summary:', sections.clinicalSummary.substring(0, 100) + '...');
-            break;
-          }
-        }
-        if (sections.clinicalSummary) break;
-      }
-    }
-
-    // Extract Visualization suggestions - Multiple patterns to match different formats
-    const visualizationPatterns = [
-      // Pattern 1: **📊 Suggested Visualization:** format
-      /\*\*📊 Suggested Visualization:\*\*\s*\n\s*Type:\s*([^\n]+)\n\s*Title:\s*([^\n]+)\n\s*Data:\s*([^*]+?)(?=\*\*|$)/g,
-      // Pattern 2: 📊 Suggested Visualization: format  
-      /📊 Suggested Visualization:\s*\n\s*Type:\s*([^\n]+)\n\s*Title:\s*([^\n]+)\n\s*Data:\s*([^*]+?)(?=\*\*|$)/g,
-      // Pattern 3: VISUALIZATION REQUIREMENTS format
-      /VISUALIZATION REQUIREMENTS:\s*\n\s*\*\*📊 Suggested Visualization:\*\*\s*\n\s*Type:\s*([^\n]+)\n\s*Title:\s*([^\n]+)\n\s*Data:\s*([^*]+?)(?=\*\*|$)/g,
-      // Pattern 4: Simple format
-      /Suggested Visualization:\s*\n\s*Type:\s*([^\n]+)\n\s*Title:\s*([^\n]+)\n\s*Data:\s*([^*]+?)(?=\*\*|$)/g
-    ];
-    
-    for (const visualizationRegex of visualizationPatterns) {
-      visualizationRegex.lastIndex = 0;
-      while ((match = visualizationRegex.exec(content)) !== null) {
-        const vizType = match[1].trim();
-        const vizTitle = match[2].trim();
-        const vizData = match[3].trim();
-        
-        console.log('Found visualization match:', { vizType, vizTitle, vizData: vizData.substring(0, 100) + '...' });
-        
-        // Parse data more flexibly
-        const dataItems = [];
-        if (vizData.includes('Europe') && vizData.includes('Asia')) {
-          // Handle specific prevalence data format
-          const dataText = vizData.replace(/[()]/g, ''); // Remove parentheses
-          if (dataText.includes('1 in 2,000 in Europe')) {
-            dataItems.push({ label: 'Europe', value: 0.05 }); // 1 in 2,000 = 0.05%
-          }
-          if (dataText.includes('1 in 5,000 in Asia')) {
-            dataItems.push({ label: 'Asia', value: 0.02 }); // 1 in 5,000 = 0.02%
-          }
-          if (dataText.includes('variable in other regions')) {
-            dataItems.push({ label: 'Other Regions', value: 0.03 });
-          }
-        } else {
-          // Fallback parsing for other data formats
-          const parts = vizData.split(',');
-          parts.forEach(part => {
-            const trimmed = part.trim();
-            if (trimmed) {
-              const match = trimmed.match(/([^:]+):\s*(.+)/);
-              if (match) {
-                const label = match[1].trim();
-                const value = match[2].trim();
-                const numValue = parseFloat(value) || 0;
-                dataItems.push({ label, value: numValue > 1 ? numValue : numValue * 100 });
-              }
-            }
-          });
-        }
-
-        if (dataItems.length > 0) {
-          sections.visualizations.push({
-            type: vizType.toLowerCase().includes('bar') ? 'bar' : 
-                  vizType.toLowerCase().includes('pie') ? 'pie' : 
-                  vizType.toLowerCase().includes('flow') ? 'flowchart' : 'bar',
-            title: vizTitle,
-            description: "Data visualization based on research findings",
-            data: dataItems,
-            totalSample: "Population-based estimates",
-            source: "Medical literature review"
-          });
-          console.log('Added visualization:', sections.visualizations[sections.visualizations.length - 1]);
-        }
-        sections.mainContent = sections.mainContent.replace(match[0], '');
-      }
-    }
-
-    // Comprehensive stroke prevention analysis - all intervention categories
-    const medicalContentAnalysis = {
-      needsGuidelines: false,
-      needsRCTs: false,
-      needsMedications: false,
-      needsStratification: false,
-      missingInterventions: [] as string[],
-      suggestions: [] as string[]
-    };
-    
-    // Check for comprehensive stroke prevention coverage
-    const strokePreventionTerms = ['stroke prevention', 'secondary prevention', 'ischemic stroke', 'stroke recurrence'];
-    const guidelineTerms = ['AHA/ASA', 'ESC', 'NICE', 'ESOC', 'guideline'];
-    const landmarkTrials = ['NAVIGATE ESUS', 'NAVIGATE-ESUS', 'RESPECT', 'COMPASS', 'SPARCL', 'CLOSE'];
-    
-    // Intervention categories to check
-    const interventionCategories = {
-      anticoagulation: ['anticoagulation', 'warfarin', 'apixaban', 'rivaroxaban', 'dabigatran', 'edoxaban', 'DOAC', 'NOAC'],
-      antiplatelet: ['aspirin', 'clopidogrel', 'dipyridamole', 'antiplatelet', 'dual antiplatelet'],
-      lipidLowering: ['statin', 'atorvastatin', 'rosuvastatin', 'lipid lowering', 'cholesterol', 'SPARCL'],
-      bloodPressure: ['blood pressure', 'hypertension', 'ACE inhibitor', 'ARB', 'diuretic', 'antihypertensive'],
-      diabetes: ['diabetes', 'metformin', 'glucose control', 'HbA1c', 'glycemic control'],
-      lifestyle: ['smoking cessation', 'exercise', 'diet', 'lifestyle', 'Mediterranean diet', 'physical activity'],
-      pfoClousure: ['PFO', 'patent foramen ovale', 'cryptogenic stroke', 'PFO closure', 'RESPECT', 'CLOSE']
-    };
-    
-    const hasStrokePrevention = strokePreventionTerms.some(term => 
-      content.toLowerCase().includes(term.toLowerCase())
-    );
-    
-    if (hasStrokePrevention) {
-      // Check for guidelines
-      const hasGuidelines = guidelineTerms.some(term => 
-        content.toLowerCase().includes(term.toLowerCase())
-      );
-      if (!hasGuidelines) {
-        medicalContentAnalysis.needsGuidelines = true;
-        medicalContentAnalysis.suggestions.push(
-          '📋 Reference clinical guidelines: AHA/ASA 2021, ESC 2020, ESOC, NICE for evidence-based recommendations'
-        );
-      }
-      
-      // Check for landmark trials
-      const hasLandmarkTrials = landmarkTrials.some(trial => 
-        content.toLowerCase().includes(trial.toLowerCase())
-      );
-      if (!hasLandmarkTrials) {
-        medicalContentAnalysis.needsRCTs = true;
-        medicalContentAnalysis.suggestions.push(
-          '🧪 Include key trials: NAVIGATE ESUS, RESPECT/CLOSE (PFO), COMPASS (dual therapy), SPARCL (statins)'
-        );
-      }
-      
-      // Check intervention coverage
-      const missingInterventions: string[] = [];
-      Object.entries(interventionCategories).forEach(([category, keywords]) => {
-        const hasIntervention = keywords.some(keyword => 
-          content.toLowerCase().includes(keyword.toLowerCase())
-        );
-        if (!hasIntervention) {
-          missingInterventions.push(category);
-        }
-      });
-      
-      // Generate specific suggestions for missing interventions
-      if (missingInterventions.includes('antiplatelet')) {
-        medicalContentAnalysis.missingInterventions.push('Antiplatelet therapy');
-        medicalContentAnalysis.suggestions.push(
-          '� Add antiplatelet therapy: Aspirin 75-100mg daily for non-cardioembolic stroke, clopidogrel for aspirin-intolerant patients'
-        );
-      }
-      
-      if (missingInterventions.includes('lipidLowering')) {
-        medicalContentAnalysis.missingInterventions.push('Lipid management');
-        medicalContentAnalysis.suggestions.push(
-          '📊 Include lipid lowering: High-intensity statins (atorvastatin 80mg) reduce stroke recurrence + mortality (SPARCL trial)'
-        );
-      }
-      
-      if (missingInterventions.includes('bloodPressure')) {
-        medicalContentAnalysis.missingInterventions.push('Blood pressure control');
-        medicalContentAnalysis.suggestions.push(
-          '🩺 Address BP control: Most important modifiable risk factor. Target <130/80 mmHg with ACE inhibitors/ARBs'
-        );
-      }
-      
-      if (missingInterventions.includes('diabetes')) {
-        medicalContentAnalysis.missingInterventions.push('Diabetes management');
-        medicalContentAnalysis.suggestions.push(
-          '🍎 Include diabetes control: HbA1c <7%, metformin first-line, lifestyle modification critical'
-        );
-      }
-      
-      if (missingInterventions.includes('lifestyle')) {
-        medicalContentAnalysis.missingInterventions.push('Lifestyle interventions');
-        medicalContentAnalysis.suggestions.push(
-          '🏃 Add lifestyle measures: Smoking cessation, Mediterranean diet, regular exercise - essential and cost-effective'
-        );
-      }
-      
-      if (missingInterventions.includes('pfoClousure')) {
-        medicalContentAnalysis.missingInterventions.push('PFO closure consideration');
-        medicalContentAnalysis.suggestions.push(
-          '🔧 Consider PFO closure: For cryptogenic stroke patients with PFO based on RESPECT/CLOSE trials'
-        );
-      }
-      
-      // Overall scope assessment
-      if (missingInterventions.length >= 4) {
-        medicalContentAnalysis.suggestions.unshift(
-          '⚠️ Narrow scope detected: Response focuses mainly on anticoagulation. Include comprehensive stroke prevention across all intervention categories'
-        );
-      }
-    }
-    
-    // Store analysis results in sections for rendering
-    sections.medicalContentAnalysis = medicalContentAnalysis;
-    if (process.env.NODE_ENV === 'development') {
-      console.log('MessageBubble parsing content length:', content.length);
-      console.log('Content preview:', content.substring(0, 300) + '...');
-      if (sections.visualizations.length > 0) {
-        console.log('Found visualizations:', sections.visualizations);
-      }
-      if (sections.simpleExplanations.length > 0) {
-        console.log('Found simple explanations:', sections.simpleExplanations);
-      }
-      if (sections.clinicalSummary) {
-        console.log('Found clinical summary:', sections.clinicalSummary.substring(0, 100) + '...');
-      }
-    }
-    
-    // Enhanced Fallback: If no structured data found but content contains keywords, try alternative parsing
-    if (sections.simpleExplanations.length === 0 && content.includes('Simple Explanation')) {
-      console.log('Attempting fallback simple explanation parsing...');
-      
-      // Try to extract simple explanations from unstructured text
-      const fallbackExplanationRegex = /Simple Explanation[:\s]*([^.!?]*(?:[.!?][^.!?]*)*)/gi;
-      const matches = content.match(fallbackExplanationRegex);
-      if (matches) {
-        matches.forEach((match, index) => {
-          const cleanMatch = match.replace(/Simple Explanation[:\s]*/i, '').trim();
-          if (cleanMatch.length > 10) { // Only if substantial content
-            sections.simpleExplanations.push({
-              term: `Medical Term ${index + 1}`,
-              explanation: cleanMatch
-            });
-            console.log('Fallback extracted:', cleanMatch.substring(0, 50) + '...');
-          }
-        });
-      }
-    }
-    
-    // Advanced Visualization Fallback - Look for any data that can be visualized
-    if (sections.visualizations.length === 0) {
-      console.log('Attempting advanced fallback visualization parsing...');
-      
-      let dataItems: Array<{ label: string; value: number; color?: string }> = [];
-      let vizTitle = 'Medical Data Visualization';
-      
-      // Look for stroke prevention guidelines and trials data
-      const guidelineMatches = content.match(/(AHA\/ASA|ESC|NICE|ACC\/AHA)\s+(\d{4})/gi);
-      if (guidelineMatches && guidelineMatches.length > 0) {
-        guidelineMatches.forEach((match, index) => {
-          dataItems.push({
-            label: match.trim(),
-            value: 100 - (index * 15), // Decreasing relevance
-            color: `hsl(${220 + index * 30}, 70%, 60%)`
-          });
-        });
-        vizTitle = 'Clinical Guidelines Timeline';
-      }
-      
-      // Look for RCT trials (NAVIGATE, RESPECT, COMPASS, etc.)
-      const trialMatches = content.match(/(NAVIGATE\s+ESUS|RESPECT|COMPASS|WARSS|PICSS|CLOSURE|PC Trial)/gi);
-      if (trialMatches && trialMatches.length > 0) {
-        trialMatches.forEach((match, index) => {
-          dataItems.push({
-            label: match.trim(),
-            value: 95 - (index * 10), // High evidence quality
-            color: `hsl(${120 + index * 25}, 70%, 60%)`
-          });
-        });
-        vizTitle = 'Major RCT Evidence Base';
-      }
-      
-      // Look for stroke prevention efficacy data
-      const efficacyMatches = content.match(/(\d+(?:\.\d+)?)\s*%\s*(reduction|efficacy|effectiveness)/gi);
-      if (efficacyMatches && efficacyMatches.length > 0) {
-        efficacyMatches.forEach((match, index) => {
-          const percentageMatch = match.match(/(\d+(?:\.\d+)?)/);
-          if (percentageMatch) {
-            const percentage = parseFloat(percentageMatch[1]);
-            dataItems.push({
-              label: `Intervention ${index + 1}`,
-              value: percentage,
-              color: `hsl(${60 + index * 40}, 70%, 60%)`
-            });
-          }
-        });
-        vizTitle = 'Stroke Prevention Efficacy';
-      }
-      
-      // Look for stroke subtype stratification data
-      const strokeSubtypeMatches = content.match(/(atrial fibrillation|AF|ESUS|atherosclerotic|cardioembolic|lacunar).{0,50}(\d+(?:\.\d+)?)\s*%/gi);
-      if (strokeSubtypeMatches && strokeSubtypeMatches.length > 0) {
-        strokeSubtypeMatches.forEach((match, index) => {
-          const subtypeMatch = match.match(/(atrial fibrillation|AF|ESUS|atherosclerotic|cardioembolic|lacunar)/i);
-          const percentageMatch = match.match(/(\d+(?:\.\d+)?)\s*%/);
-          if (subtypeMatch && percentageMatch) {
-            const subtype = subtypeMatch[1].toUpperCase();
-            const percentage = parseFloat(percentageMatch[1]);
-            dataItems.push({
-              label: subtype === 'AF' ? 'Atrial Fibrillation' : subtype,
-              value: percentage,
-              color: `hsl(${180 + index * 40}, 70%, 60%)`
-            });
-          }
-        });
-        vizTitle = 'Stroke Subtype Distribution';
-      }
-      
-      // Look for medication efficacy data
-      const medicationMatches = content.match(/(apixaban|rivaroxaban|dabigatran|edoxaban|aspirin|clopidogrel|warfarin).{0,100}(\d+(?:\.\d+)?)\s*%\s*(reduction|efficacy|effective)/gi);
-      if (medicationMatches && medicationMatches.length > 0) {
-        medicationMatches.forEach((match, index) => {
-          const drugMatch = match.match(/(apixaban|rivaroxaban|dabigatran|edoxaban|aspirin|clopidogrel|warfarin)/i);
-          const percentageMatch = match.match(/(\d+(?:\.\d+)?)\s*%/);
-          if (drugMatch && percentageMatch) {
-            const drug = drugMatch[1].charAt(0).toUpperCase() + drugMatch[1].slice(1);
-            const percentage = parseFloat(percentageMatch[1]);
-            dataItems.push({
-              label: drug,
-              value: percentage,
-              color: `hsl(${300 + index * 25}, 70%, 60%)`
-            });
-          }
-        });
-        vizTitle = 'Medication Efficacy Comparison';
-      }
-      const riskMatches = content.match(/(CHA2DS2-VASc|CHADS2|HAS-BLED|ABCD2)\s*[:=]\s*(\d+)/gi);
-      if (riskMatches && riskMatches.length > 0) {
-        riskMatches.forEach((match, index) => {
-          const scoreMatch = match.match(/(\d+)/);
-          if (scoreMatch) {
-            dataItems.push({
-              label: match.split(/[:=]/)[0].trim(),
-              value: parseInt(scoreMatch[1]) * 20, // Scale to percentage
-              color: `hsl(${10 + index * 50}, 70%, 60%)`
-            });
-          }
-        });
-        vizTitle = 'Risk Stratification Scores';
-      }
-      
-      // Fallback: General percentage data
-      if (dataItems.length === 0) {
-        const percentageMatches = content.match(/(\d+(?:\.\d+)?)\s*%/g);
-        if (percentageMatches && percentageMatches.length > 0) {
-          dataItems = percentageMatches.slice(0, 4).map((match, index) => ({
-            label: `Data Point ${index + 1}`,
-            value: parseFloat(match.replace('%', '')),
-            color: `hsl(${200 + index * 30}, 70%, 60%)`
-          }));
-          vizTitle = 'Numerical Data from Content';
-        }
-      }
-      
-      if (dataItems.length > 0) {
-        sections.visualizations.push({
-          type: 'bar',
-          title: vizTitle,
-          description: 'Auto-generated visualization from medical content',
-          data: dataItems,
-          totalSample: 'Literature analysis',
-          source: 'Extracted medical data'
-        });
-        console.log('Advanced fallback visualization created:', vizTitle, dataItems);
-      }
-    }
-    
-    return sections;
+    return undefined;
   };
 
-  const { simpleExplanations, visualizations, clinicalSummary, mainContent, medicalContentAnalysis } = isUser ? 
-    { simpleExplanations: [], visualizations: [], clinicalSummary: '', mainContent: message.content, medicalContentAnalysis: { needsGuidelines: false, needsRCTs: false, needsMedications: false, needsStratification: false, missingInterventions: [], suggestions: [] } } : 
-    parseSpecialSections(message.content);
-
-  // Identify highlighted conditions for enhanced citations
-  const highlightConditions = ['Brugada', 'LQTS', 'Long QT', 'CPVT', 'Hypertrophic Cardiomyopathy', 'ARVC'];
+  const userQuery = getUserQueryForResponse();
 
   return (
-    <div className="flex gap-4">
-      <div className="flex-shrink-0">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-          message.role === 'user' 
-            ? 'bg-blue-600 text-white' 
-            : 'bg-gray-100 text-gray-700'
-        }`}>
-          {message.role === 'user' ? (
-            <User className="h-4 w-4" />
-          ) : (
-            <Bot className="h-4 w-4" />
-          )}
+    <div className={cn(
+      "group relative mb-6 px-4 md:px-0",
+      isUser ? "flex justify-end" : "w-full"
+    )}>
+      {/* User Message - Compact Right-aligned */}
+      {isUser ? (
+        <div className="max-w-xs sm:max-w-md bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-2xl rounded-br-md shadow-lg">
+          <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 border-b border-blue-500/20">
+            <div className="flex-shrink-0 w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-white/10 text-white ring-2 ring-white/20 flex items-center justify-center">
+              <User className="h-3 w-3 sm:h-4 sm:w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-xs sm:text-sm text-white">You</div>
+            </div>
+            <div className="text-xs text-blue-100 flex-shrink-0">
+              {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          </div>
+          <div className="px-3 sm:px-4 py-3 sm:py-4">
+            <p className="whitespace-pre-wrap text-xs sm:text-sm leading-relaxed break-words">
+              {message.content}
+            </p>
+          </div>
         </div>
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-gray-900 mb-1">
-          {message.role === 'user' ? 'You' : 'MedGPT Scholar'}
-        </div>
-        <div className="text-gray-800 leading-relaxed break-words chat-content">
-          {message.role === 'user' ? (
-            <p className="whitespace-pre-wrap">{message.content}</p>
-          ) : (
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
-                h1: ({ children }) => <h1 className="text-xl font-bold mb-3">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-lg font-semibold mb-2">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-md font-medium mb-2">{children}</h3>,
-                ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
-                ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
-                li: ({ children }) => <li className="mb-1">{children}</li>,
-                strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                em: ({ children }) => <em className="italic">{children}</em>,
-                code: ({ children }) => <code className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono">{children}</code>,
-                pre: ({ children }) => <pre className="bg-gray-100 p-3 rounded-lg overflow-x-auto text-sm">{children}</pre>,
-                blockquote: ({ children }) => <blockquote className="border-l-4 border-blue-500 pl-4 italic text-gray-600 mb-3">{children}</blockquote>,
-                table: ({ children }) => <table className="w-full border-collapse border border-gray-300 mb-3">{children}</table>,
-                th: ({ children }) => <th className="border border-gray-300 px-3 py-2 bg-gray-50 font-semibold text-left">{children}</th>,
-                td: ({ children }) => <td className="border border-gray-300 px-3 py-2">{children}</td>,
-                a: ({ href, children }) => <a href={href} className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>,
-              }}
-            >
-              {mainContent}
-            </ReactMarkdown>
-          )}
-        </div>
-
-        {/* TL;DR for Patients - Always show first for medical responses */}
-        {!isUser && message.content.length > 200 && (
-          <div className="mt-4">
-            <TLDRSummary 
-              content={message.content} 
-              condition={(() => {
-                const conditions = ['stroke', 'atrial fibrillation', 'diabetes', 'hypertension'];
-                return conditions.find(c => message.content.toLowerCase().includes(c));
-              })()} 
-            />
-          </div>
-        )}
-
-        {/* Guideline Quotes - Show authoritative statements */}
-        {!isUser && (message.content.includes('guideline') || message.content.includes('AHA') || message.content.includes('ESC')) && (
-          <div className="mt-4">
-            <GuidelineQuote content={message.content} />
-          </div>
-        )}
-
-        {/* Landmark Trials - Show when relevant trials are mentioned */}
-        {!isUser && (message.content.includes('trial') || message.content.includes('study') || message.content.includes('PROGRESS') || message.content.includes('UKPDS')) && (
-          <div className="mt-4">
-            <LandmarkTrial content={message.content} />
-          </div>
-        )}
-
-        {/* Medical Flowchart - Show for any medical content */}
-        {!isUser && (
-          <div className="mt-4">
-            <MedicalFlowchart content={message.content} />
-          </div>
-        )}
-
-        {/* Missing Landmark Trials - Critical studies not referenced */}
-        {!isUser && (
-          <div className="mt-4">
-            <MissingLandmarkTrials content={message.content} />
-          </div>
-        )}
-
-        {/* Research Gap Analysis - Identify missing landmark studies */}
-        {!isUser && (
-          <div className="mt-4">
-            <ResearchGapAnalysis 
-              content={message.content} 
-              gaps={[
-                "No direct RCTs comparing CAC vs. stress testing in the retrieved dataset",
-                "Off-topic sources (e.g., desmoplakin cardiomyopathy) were included", 
-                "No synthesis of high-impact studies like MESA, PROMISE, or SCOT-HEART"
-              ]}
-            />
-          </div>
-        )}
-
-        {/* Clinical Summary (TL;DR) */}
-        {!isUser && clinicalSummary && (
-          <div className="mt-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">📋</span>
-              <h3 className="text-sm font-semibold text-blue-800">Clinical Summary (TL;DR)</h3>
+      ) : (
+        /* AI Message - Full width container */
+        <div className="w-full max-w-4xl mx-auto bg-white border border-gray-200 rounded-2xl rounded-bl-md shadow-sm hover:shadow-md transition-shadow duration-200">
+          {/* Message Header */}
+          <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-100 bg-gray-50/50">
+            <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shadow-sm bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
+              <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center">
+                <div className="w-3 h-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-sm"></div>
+              </div>
             </div>
-            <div className="text-sm text-blue-700 space-y-3">
-              {(() => {
-                // Parse the clinical summary content more intelligently
-                const content = clinicalSummary;
-                
-                // Split by bullet points and process each section
-                const sections = content.split('•').filter(section => section.trim());
-                
-                return sections.map((section, index) => {
-                  const trimmedSection = section.trim();
-                  if (!trimmedSection) return null;
-                  
-                  // Identify section type and extract content
-                  let sectionIcon = '📄';
-                  let sectionTitle = '';
-                  let sectionContent = trimmedSection;
-                  
-                  if (trimmedSection.includes('Primary Cause:')) {
-                    sectionIcon = '🎯';
-                    sectionTitle = 'Primary Cause';
-                    sectionContent = trimmedSection.replace(/.*?Primary Cause:\s*/, '');
-                  } else if (trimmedSection.includes('Secondary Causes:')) {
-                    sectionIcon = '🔬';
-                    sectionTitle = 'Secondary Causes';
-                    sectionContent = trimmedSection.replace(/.*?Secondary Causes:\s*/, '');
-                  } else if (trimmedSection.includes('Diagnostic Tools:')) {
-                    sectionIcon = '🩺';
-                    sectionTitle = 'Diagnostic Tools';
-                    sectionContent = trimmedSection.replace(/.*?Diagnostic Tools:\s*/, '');
-                  } else if (trimmedSection.includes('Evidence Gaps:')) {
-                    sectionIcon = '⚠️';
-                    sectionTitle = 'Evidence Gaps';
-                    sectionContent = trimmedSection.replace(/.*?Evidence Gaps:\s*/, '');
-                  }
-                  
-                  // Clean up and format the content
-                  const cleanContent = sectionContent
-                    .replace(/\*\*\*\*/g, '') // Remove quadruple asterisks
-                    .replace(/\*\*\*/g, '') // Remove triple asterisks
-                    .replace(/\*\*/g, '') // Remove double asterisks
-                    .trim();
-                  
-                  // Split by arrows and confidence indicators for better formatting
-                  const parts = cleanContent.split(/→/).map(part => part.trim()).filter(Boolean);
-                  
-                  return (
-                    <div key={index} className="bg-white p-3 rounded-lg border border-blue-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-base">{sectionIcon}</span>
-                        <span className="font-semibold text-blue-800">{sectionTitle}</span>
-                      </div>
-                      <div className="space-y-2">
-                        {parts.map((part, partIndex) => {
-                          // Style confidence levels
-                          const styledPart = part
-                            .replace(/\(([^)]*confidence[^)]*)\)/gi, '<span class="inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium ml-1">$1</span>')
-                            .replace(/\b(MODERATE|HIGH|LOW|VERY LOW)\b/g, '<strong class="text-blue-900">$1</strong>');
-                          
-                          return (
-                            <div key={partIndex} className="text-blue-700 leading-relaxed">
-                              <div dangerouslySetInnerHTML={{ __html: styledPart }} />
-                              {partIndex < parts.length - 1 && (
-                                <div className="flex items-center justify-center my-2">
-                                  <span className="text-blue-500 font-bold">↓</span>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                }).filter(Boolean);
-              })()}
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-xs sm:text-sm text-gray-900">MedGPT Scholar</div>
+              <div className="text-xs text-gray-500 mt-0.5 hidden sm:block">AI Medical Research Assistant</div>
+            </div>
+            <div className="text-xs text-gray-400 flex-shrink-0">
+              {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
           </div>
-        )}
 
-        {/* Medical Content Quality Suggestions */}
-        {!isUser && medicalContentAnalysis && medicalContentAnalysis.suggestions.length > 0 && (
-          <div className="mt-4 p-4 bg-amber-50 border-l-4 border-amber-500 rounded-r-lg">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">💡</span>
-              <h3 className="text-sm font-semibold text-amber-800">Evidence Enhancement Suggestions</h3>
-            </div>
-            <div className="space-y-2">
-              {medicalContentAnalysis.suggestions.map((suggestion, index) => (
-                <div key={index} className="flex items-start gap-2">
-                  <span className="text-amber-600 mt-1">•</span>
-                  <p className="text-sm text-amber-700 leading-relaxed">{suggestion}</p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 text-xs text-amber-600 italic">
-              These suggestions help ensure clinical recommendations are backed by the highest quality evidence.
-            </div>
-          </div>
-        )}
-
-        {/* Comprehensive Stroke Guide - Show when intervention categories are missing */}
-        {!isUser && medicalContentAnalysis && medicalContentAnalysis.missingInterventions.length > 0 && (
-          <div className="mt-4">
-            <ComprehensiveStrokeGuide missingInterventions={medicalContentAnalysis.missingInterventions} />
-          </div>
-        )}
-
-        {/* Stroke Stratification Guide - Show when stratification is missing */}
-        {!isUser && medicalContentAnalysis && medicalContentAnalysis.needsStratification && (
-          <div className="mt-4">
-            <StrokeStratificationGuide />
-          </div>
-        )}
-
-        {/* Simple Explanations */}
-        {!isUser && simpleExplanations.length > 0 && (
-          <div className="space-y-2 mt-3">
-            {simpleExplanations.map((explanation, index) => (
-              <SimpleExplanation
-                key={index}
-                medicalTerm={explanation.term}
-                explanation={explanation.explanation}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Medical Visualizations - Hidden numerical data from users */}
-        {/* {!isUser && visualizations.length > 0 && (
-          <div className="space-y-3 mt-3">
-            {visualizations.map((viz, index) => (
-              <MedicalVisualization
-                key={index}
-                visualization={viz}
-              />
-            ))}
-          </div>
-        )} */}
-
-        {/* Patient Education - Auto-detect medical conditions for patient-friendly explanations */}
-        {!isUser && mode === 'doctor' && (
-          (() => {
-            // Detect medical conditions that would benefit from patient education
-            const medicalConditions = [
-              'stroke', 'heart attack', 'diabetes', 'hypertension', 'atrial fibrillation',
-              'blood pressure', 'cholesterol', 'anticoagulant', 'blood thinner'
-            ];
+          {/* Dynamic Confidence Badge */}
+          {(() => {
+            // First check if there's a confidence score from multi-agent system
+            const multiAgentConfidence = message.confidence;
             
-            const detectedCondition = medicalConditions.find(condition => 
-              message.content.toLowerCase().includes(condition)
-            );
+            // Fallback to extracting confidence percentage from AI response text
+            const confidenceMatch = message.content.match(/confidence[:\s]*(\d+)%/i) || 
+                                   message.content.match(/(\d+)%\s*confidence/i) ||
+                                   message.content.match(/certainty[:\s]*(\d+)%/i);
             
-            if (detectedCondition) {
-              let patientEducation;
+            // Use multi-agent confidence first, then extracted confidence
+            const confidence = multiAgentConfidence || (confidenceMatch ? parseInt(confidenceMatch[1]) : null);
+            
+            if (confidence !== null) {
+              const getConfidenceColor = (conf: number) => {
+                if (conf >= 85) return "bg-emerald-100 text-emerald-800 border-emerald-200";
+                if (conf >= 70) return "bg-blue-100 text-blue-800 border-blue-200";
+                if (conf >= 55) return "bg-yellow-100 text-yellow-800 border-yellow-200";
+                return "bg-red-100 text-red-800 border-red-200";
+              };
               
-              // Generate condition-specific patient education
-              if (detectedCondition.includes('stroke')) {
-                patientEducation = PatientEducationProcessor.generateStrokePatientEducation('basic');
-              } else {
-                // For other conditions, extract from the medical content
-                patientEducation = PatientEducationProcessor.extractPatientEducation(
-                  message.content, 
-                  detectedCondition, 
-                  'basic'
-                );
-              }
-              
+              const getConfidenceLabel = (conf: number) => {
+                if (conf >= 85) return "High Confidence";
+                if (conf >= 70) return "Moderate Confidence";
+                if (conf >= 55) return "Low Confidence";
+                return "Very Low Confidence";
+              };
+
               return (
-                <div className="mt-4">
-                  <PatientEducationCard 
-                    content={patientEducation}
-                    readingLevel="basic"
-                    onLevelChange={(level) => {
-                      // Could implement dynamic level switching here
-                      console.log('Patient education level changed to:', level);
-                    }}
-                  />
+                <div className="px-3 sm:px-6 py-2 border-b border-gray-100 bg-gray-50/30">
+                  <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getConfidenceColor(confidence)}`}>
+                    <div className="w-2 h-2 rounded-full mr-2 bg-current opacity-60"></div>
+                    {getConfidenceLabel(confidence)} ({confidence}%)
+                  </div>
                 </div>
               );
             }
-            
             return null;
-          })()
-        )}
-        
-        {/* Enhanced Citations with Source Diversity */}
-        {(mode === 'research' || mode === 'source-finder') && message.citations && message.citations.length > 0 && (
-          <div className="space-y-3 mt-3">
-            {(() => {
-              // Filter and rank citations using enhanced processor
-              console.log('MessageBubble: Processing citations', {
-                originalCount: message.citations.length,
-                citations: message.citations.map(c => ({ title: c.title?.substring(0, 40), journal: c.journal }))
-              });
-              
-              const filteredCitations = EnhancedCitationProcessor.filterAndRankCitations(message.citations);
-              const qualityReport = EnhancedCitationProcessor.generateQualityReport(filteredCitations);
-              
-              console.log('MessageBubble: After filtering', {
-                filteredCount: filteredCitations.length,
-                filtered: filteredCitations.map(c => ({ title: c.title?.substring(0, 40), journal: c.journal }))
-              });
-              
-              return (
-                <>
-                  {/* Debug Information - Hidden from users in production */}
-                  {/* {message.citations.length > 0 && filteredCitations.length < 2 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                      <h4 className="font-semibold text-amber-800 mb-2 flex items-center gap-2">
-                        <span>🔍</span>
-                        Citation Analysis Debug
-                      </h4>
-                      <div className="text-sm text-amber-700 space-y-2">
-                        <p><strong>Original Citations:</strong> {message.citations.length}</p>
-                        <p><strong>After Quality Filter:</strong> {filteredCitations.length}</p>
-                        <div>
-                          <strong>Original Sources:</strong>
-                          <ul className="list-disc list-inside mt-1">
-                            {message.citations.map((citation, index) => (
-                              <li key={index} className="text-xs">
-                                {citation.title?.substring(0, 60)}... ({citation.journal || 'Unknown Journal'})
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        {filteredCitations.length < message.citations.length && (
-                          <p className="text-amber-600">
-                            <strong>Note:</strong> Some citations were filtered for quality. This might indicate 
-                            the research API needs to retrieve more diverse, high-quality sources.
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )} */}
+          })()}
 
-                  {/* Evidence Quality Summary - Simplified for users */}
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-green-800 mb-2 flex items-center gap-2">
-                      <span>🎯</span>
-                      Research Quality
-                    </h4>
-                    <div className="text-sm text-green-700">
-                      Research findings are based on peer-reviewed medical literature and clinical guidelines.
+          {/* AI Message Content */}
+          <div className="px-3 sm:px-6 py-4 sm:py-5 leading-relaxed text-gray-800">
+            {/* Quick Summary for Doctor Mode */}
+            {mode === 'doctor' && (
+              <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 rounded-xl shadow-sm">
+                <div className="flex items-start gap-2 sm:gap-3">
+                  <div className="flex-shrink-0 w-6 h-6 sm:w-8 sm:h-8 bg-teal-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white font-bold text-xs sm:text-sm">📋</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-teal-900 mb-1 sm:mb-2 text-xs sm:text-sm">Quick Summary</h3>
+                    <div className="text-xs sm:text-sm text-teal-800 leading-relaxed">
+                      {message.content.split('\n').slice(0, 3).join(' ').substring(0, 200)}...
                     </div>
                   </div>
-                  
-                  {/* Source Diversity Tracker - Hidden from users */}
-                  {/* <SourceDiversityTracker citations={filteredCitations} /> */}
-                  
-                  {/* Enhanced Citation Cards */}
-                  <div className="space-y-2">
-                    {filteredCitations.length > 0 ? (
-                      filteredCitations.map((citation, index) => (
-                        <EnhancedCitationCard 
-                          key={citation.id || citation.pmid || citation.doi || `citation-${index}`} 
-                          citation={citation}
-                          highlightConditions={highlightConditions}
-                        />
-                      ))
-                    ) : (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <p className="text-blue-800 text-sm">
-                          📚 <strong>Research Sources:</strong> Medical information is sourced from peer-reviewed journals and clinical databases.
-                        </p>
-                      </div>
-                    )}
+                </div>
+              </div>
+            )}
+
+            {/* Main Content Rendering */}
+            <div className="prose prose-sm sm:prose-base prose-gray max-w-none break-words">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                table: ({ children }) => (
+                  <div className="overflow-x-auto my-4">
+                    <table className="min-w-full border-collapse border border-gray-300 text-xs sm:text-sm">
+                      {children}
+                    </table>
                   </div>
-                </>
-              );
-            })()}
-          </div>
-        )}
-        
-        {/* Confidence indicator */}
-        {message.confidence && (
-          <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
-            <span>Confidence: {message.confidence}%</span>
-            <div className="w-16 h-1 bg-gray-200 rounded-full overflow-hidden">
-              <div 
-                className={`h-full rounded-full transition-all duration-300 ${
-                  message.confidence > 80 ? 'bg-green-500' : 
-                  message.confidence > 60 ? 'bg-yellow-500' : 'bg-red-500'
-                }`}
-                style={{ width: `${message.confidence}%` }}
-              />
+                ),
+                thead: ({ children }) => (
+                  <thead className="bg-gray-50">{children}</thead>
+                ),
+                th: ({ children }) => (
+                  <th className="border border-gray-300 px-2 sm:px-4 py-2 text-left font-semibold text-gray-900">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="border border-gray-300 px-2 sm:px-4 py-2 text-gray-700">
+                    {children}
+                  </td>
+                ),
+                h1: ({ children }) => (
+                  <h1 className="text-lg sm:text-xl font-bold text-gray-900 mt-6 mb-3 first:mt-0">
+                    {children}
+                  </h1>
+                ),
+                h2: ({ children }) => (
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 mt-5 mb-2">
+                    {children}
+                  </h2>
+                ),
+                h3: ({ children }) => (
+                  <h3 className="text-sm sm:text-base font-medium text-gray-900 mt-4 mb-2">
+                    {children}
+                  </h3>
+                ),
+                ul: ({ children }) => (
+                  <ul className="list-disc list-inside space-y-1 my-3">{children}</ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="list-decimal list-inside space-y-1 my-3">{children}</ol>
+                ),
+                li: ({ children }) => (
+                  <li className="text-gray-700 text-xs sm:text-sm leading-relaxed">{children}</li>
+                ),
+                p: ({ children }) => (
+                  <p className="mb-3 text-xs sm:text-sm text-gray-700 leading-relaxed last:mb-0">
+                    {children}
+                  </p>
+                ),
+                blockquote: ({ children }) => (
+                  <blockquote className="border-l-4 border-blue-500 pl-4 italic text-gray-600 my-4">
+                    {children}
+                  </blockquote>
+                ),
+                code: ({ children, ...props }) => {
+                  // Check if it's inline code (no language specified)
+                  const isInline = !props.className;
+                  return isInline ? (
+                    <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">
+                      {children}
+                    </code>
+                  ) : (
+                    <code className="block bg-gray-100 text-gray-800 p-3 rounded-lg text-xs font-mono overflow-x-auto">
+                      {children}
+                    </code>
+                  );
+                },
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-gray-900">{children}</strong>
+                ),
+                em: ({ children }) => (
+                  <em className="italic text-gray-700">{children}</em>
+                )
+              }}
+              >
+                {message.content}
+              </ReactMarkdown>
             </div>
           </div>
-        )}
-        
-        <div className="text-xs text-gray-500 mt-2">
-          {message.timestamp.toLocaleTimeString()}
+
+          {/* Enhanced Medical Components */}
+          <div className="px-3 sm:px-6 space-y-4">
+            <GuidelineQuote content={message.content} />
+            <LandmarkTrial content={message.content} />
+          </div>
+
+          {/* Patient-Friendly Visual Components - Doctor mode only */}
+          {mode === 'doctor' && (
+            <div className="px-3 sm:px-6 space-y-4">
+              <ProbabilityChart content={message.content} />
+              <MedicalFlowchart content={message.content} patientFriendly={true} />
+            </div>
+          )}
+
+          {/* Citation Cards - Research mode only */}
+          {mode === 'research' && message.citations && message.citations.length > 0 && (
+            <div className="px-3 sm:px-6 pb-4 sm:pb-6">
+              <div className="mt-4 sm:mt-6 space-y-3">
+                <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-3">Sources</h3>
+                {(() => {
+                  // Intelligently filter citations while preserving multi-database diversity
+                  const filteredCitations = message.citations.filter((citation) => {
+                    const title = citation.title.toLowerCase();
+                    const source = citation.source?.toLowerCase() || '';
+                    const abstract = citation.abstract?.toLowerCase() || '';
+                    const query = userQuery?.toLowerCase() || '';
+                    
+                    // Track citation sources to maintain diversity
+                    const citationSource = citation.source || 'Unknown';
+                    
+                    // Only exclude truly irrelevant citations, not valid sources from different databases
+                    
+                    // Exclude only clearly unrelated FDA adverse event reports (not all FDA sources)
+                    if (source.includes('fda faers') && 
+                        !query.includes(title.split(' ')[0]) && // Keep if drug name matches query
+                        title.includes('recall reason') && 
+                        !title.includes('efficacy') && !title.includes('clinical')) {
+                      return false;
+                    }
+                    
+                    // More selective UKPDS filtering - only exclude for very specific modern drug comparisons
+                    if ((title.includes('ukpds') || title.includes('uk prospective diabetes')) && 
+                        query.includes('sglt2') && query.includes('dpp-4') && 
+                        !title.includes('cardiovascular') && !title.includes('mortality')) {
+                      return false;
+                    }
+                    
+                    // Exclude only pure bibliometric studies (not research with bibliometric analysis)
+                    if (title.includes('bibliometric analysis') && 
+                        !title.includes('clinical') && !title.includes('treatment') && 
+                        !title.includes('efficacy') && !title.includes('outcome')) {
+                      return false;
+                    }
+                    
+                    // Keep all other citations to preserve database diversity
+                    return true;
+                  });
+                  
+                  // Group citations by source to show database diversity
+                  const citationsBySource = filteredCitations.reduce((acc, citation) => {
+                    const source = citation.source || 'Unknown';
+                    if (!acc[source]) acc[source] = [];
+                    acc[source].push(citation);
+                    return acc;
+                  }, {} as Record<string, typeof filteredCitations>);
+                  
+                  const sourceCount = Object.keys(citationsBySource).length;
+                  
+                  // Show filtered citations with database diversity information
+                  if (filteredCitations.length === 0) {
+                    return (
+                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-amber-800 text-sm">
+                          📋 Note: No sources provided were directly relevant to this specific comparison. 
+                          Response based on established evidence from landmark cardiovascular outcome trials 
+                          (EMPA-REG OUTCOME, CANVAS, DECLARE-TIMI 58, SAVOR-TIMI 53).
+                        </p>
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <>
+                      {/* Database Diversity Indicator */}
+                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-blue-800 font-medium">
+                            🗄️ Sources from {sourceCount} database{sourceCount !== 1 ? 's' : ''}: {Object.keys(citationsBySource).join(', ')}
+                          </span>
+                          <span className="text-blue-600">
+                            {filteredCitations.length} citation{filteredCitations.length !== 1 ? 's' : ''} total
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Display citations grouped by source */}
+                      {Object.entries(citationsBySource).map(([source, citations]) => (
+                        <div key={source} className="mb-4">
+                          <h4 className="text-xs font-medium text-gray-600 mb-2 px-2">
+                            {source} ({citations.length} citation{citations.length !== 1 ? 's' : ''})
+                          </h4>
+                          {citations.map((citation, index) => (
+                            <div key={`${source}-${index}`} className="mb-2">
+                              <EnhancedCitationCard 
+                                citation={citation} 
+                                userQuery={userQuery}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                      
+                      {message.citations.length > filteredCitations.length && (
+                        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                          <p className="text-gray-700 text-xs">
+                            🔍 {message.citations.length - filteredCitations.length} citation{message.citations.length - filteredCitations.length !== 1 ? 's' : ''} filtered out: 
+                            excluding unrelated FDA recalls, pure bibliometric analyses, and trials not addressing the specific comparison.
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

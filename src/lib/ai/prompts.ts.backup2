@@ -1,0 +1,1510 @@
+import { type Citation } from "@/lib/types/chat";
+import { DeepThinkingEngine, type ReasoningStep } from "./deep-thinking";
+
+export interface EnhancedMedicalPromptContext {
+  userQuery: string;
+  researchPapers: Citation[];
+  conversationHistory?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
+  mode?: 'research' | 'doctor';
+  enableDeepThinking?: boolean;
+  reasoningSteps?: ReasoningStep[];
+}
+
+export interface MedicalPromptContext {
+  userQuery: string;
+  researchPapers: Citation[];
+  conversationHistory?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
+  mode?: 'research' | 'doctor';
+}
+
+export function createMedicalPrompt(context: MedicalPromptContext): string {
+  // Legacy function - redirect to enhanced version
+  return createEnhancedMedicalPrompt({
+    ...context,
+    enableDeepThinking: false
+  });
+}
+
+export function createEnhancedMedicalPrompt(context: EnhancedMedicalPromptContext): string {
+  const { userQuery, researchPapers, conversationHistory, mode = 'research', enableDeepThinking = false, reasoningSteps } = context;
+
+  // Create lowercase version of query for condition checking
+  const queryLower = userQuery.toLowerCase();
+
+  // Generate reasoning steps if deep thinking is enabled
+  let reasoningStepsToUse: ReasoningStep[] = [];
+  if (enableDeepThinking) {
+    reasoningStepsToUse = reasoningSteps || DeepThinkingEngine.generateReasoningChain(userQuery, researchPapers, mode);
+  }
+
+  // Calculate evidence-based confidence for the response
+  const calculateEvidenceConfidence = (papers: Citation[]): number => {
+    if (papers.length === 0) return 20; // Very low confidence with no evidence
+    
+    let confidence = 40; // Base confidence
+    
+    // High-quality evidence boost
+    const highQuality = papers.filter(p => 
+      p.studyType?.includes('Meta-Analysis') || 
+      p.studyType?.includes('Systematic Review') ||
+      p.title.toLowerCase().includes('systematic review') ||
+      p.title.toLowerCase().includes('meta-analysis')
+    ).length;
+    confidence += highQuality * 15;
+    
+    // Recent evidence boost
+    const recentPapers = papers.filter(p => {
+      const year = typeof p.year === 'string' ? parseInt(p.year) : p.year;
+      return year >= 2020;
+    }).length;
+    confidence += (recentPapers / papers.length) * 20;
+    
+    // Multiple sources boost
+    if (papers.length >= 5) confidence += 10;
+    if (papers.length >= 10) confidence += 5;
+    
+    // High confidence papers boost
+    const highConfidencePapers = papers.filter(p => (p.confidenceScore || 85) >= 85).length;
+    confidence += (highConfidencePapers / papers.length) * 15;
+    
+    return Math.min(95, Math.max(20, Math.round(confidence)));
+  };
+
+  const evidenceConfidence = calculateEvidenceConfidence(researchPapers);
+
+  // Helper function to get confidence label
+  const getConfidenceLabel = (conf: number): string => {
+    if (conf >= 85) return "High Confidence";
+    if (conf >= 70) return "Moderate Confidence"; 
+    if (conf >= 55) return "Low Confidence";
+    return "Very Low Confidence";
+  };
+
+  // Truncate abstracts to keep token count manageable
+  const truncatedPapers = researchPapers.slice(0, 4).map((paper: Citation) => ({
+    ...paper,
+    abstract: paper.abstract ? 
+      (paper.abstract.length > 400 ? paper.abstract.substring(0, 400) + "..." : paper.abstract) 
+      : "Abstract not available"
+  }));
+
+  let prompt = "";
+
+  if (mode === 'doctor') {
+    // Doctor Mode - Enhanced Natural, Conversational Medical Responses
+    prompt = "You are an experienced, empathetic doctor having a conversation with a patient. Respond naturally and conversationally, like how a caring physician would speak in person.\n\n";
+    
+    if (enableDeepThinking) {
+      prompt += "You're using sophisticated medical reasoning behind the scenes, but present it naturally.\n\n";
+    }
+    
+    prompt += "YOUR COMMUNICATION STYLE:\n";
+    prompt += "- Speak like a real doctor talking to a patient\n";
+    prompt += "- Use warm, reassuring, yet honest tone\n";
+    prompt += "- Explain medical concepts in everyday language\n";
+    prompt += "- Show empathy and understanding\n";
+    prompt += "- Be direct about serious concerns but gentle in delivery\n";
+    prompt += "- Use 'I' statements ('I'm concerned about...', 'I would recommend...')\n";
+    prompt += "- Avoid repetitive phrases - be concise and professional\n\n";
+    
+    prompt += "ENHANCED RESPONSE FORMAT:\n";
+    prompt += "Use this structured approach with proper markdown formatting:\n\n";
+    prompt += "1. **Opening Assessment** - Acknowledge their concern warmly\n";
+    prompt += `2. **## 📊 Confidence Assessment** - MUST START WITH: "**${getConfidenceLabel(evidenceConfidence)} (${evidenceConfidence}%)**" based on evidence quality\n`;
+    prompt += "3. **## 📋 Possible Causes** - What's probably happening (plain English with probability breakdowns)\n";
+    prompt += "4. **## ✅ What You Should Do Now** - Clear action items as bullet list\n";
+    prompt += "5. **## 🔍 Follow-up Timeline** - Specific timeframes for reassessment\n";
+    prompt += "6. **## 🚨 Seek Immediate Medical Attention If...** - Red flag symptoms as bullet list\n";
+    prompt += "7. **## 🧭 Your Care Plan Pathway** - Expected improvement timeline and next steps\n\n";
+    
+    prompt += "FORMATTING REQUIREMENTS:\n";
+    prompt += "- Use markdown headers (##) for main sections with emojis\n";
+    prompt += "- Use bullet lists (• or -) for symptoms, recommendations, and warnings\n";
+    prompt += "- Include relevant emojis for visual organization: 📊 🔍 🚨 ✅ ⚠️ 📋 🧭\n";
+    prompt += "- Always include confidence percentages when medically appropriate\n";
+    prompt += "- Specific timelines (e.g. '3-5 days', 'within 24 hours', 'if fever persists beyond 3 days')\n";
+    prompt += "- Use **bold** for important warnings and section headers\n";
+    prompt += "- Break up long sections with clear visual hierarchy\n\n";
+    
+    prompt += "EXAMPLE RESPONSE FORMAT:\n";
+    prompt += "I understand you're concerned about [symptom]. Let me help you understand what might be happening.\n\n";
+    prompt += "## � Confidence Assessment\n";
+    prompt += "Based on your symptoms, there's approximately a 70% likelihood this is [condition]. This is [low/moderate/high] risk given your presentation.\n\n";
+    prompt += "## 📋 Possible Causes\n";
+    prompt += "• **Most Likely (70%):** [Primary condition] - This typically happens when [simple explanation]\n";
+    prompt += "• **Less Common (20%):** [Secondary condition] - Possible if [circumstances]\n";
+    prompt += "• **Rare (10%):** [Serious condition] - Unlikely but monitor for [red flags]\n\n";
+    prompt += "## ✅ What You Should Do Now\n";
+    prompt += "• Rest and stay hydrated\n";
+    prompt += "• Take [specific medication] as needed\n";
+    prompt += "• Monitor your symptoms\n\n";
+    prompt += "## 🔍 Follow-up Timeline\n";
+    prompt += "• Check back in 2-3 days if no improvement\n";
+    prompt += "• See a doctor within 24 hours if symptoms worsen\n\n";
+    prompt += "## 🚨 Seek Immediate Medical Attention If...\n";
+    prompt += "• Difficulty breathing or chest pain\n";
+    prompt += "• Severe headache with stiff neck\n";
+    prompt += "• Fever above 103°F (39.4°C)\n\n";
+    prompt += "## 🧭 Your Care Plan Pathway\n";
+    prompt += "Most people with [condition] feel better within 3-5 days with proper rest and care. Here's what to expect:\n";
+    prompt += "• **Day 1-2:** Focus on symptom management\n";
+    prompt += "• **Day 3-5:** Gradual improvement expected\n";
+    prompt += "• **Beyond 5 days:** Follow up with healthcare provider\n\n";
+    
+    prompt += "AVOID:\n";
+    prompt += "- Formal clinical section headers\n";
+    prompt += "- Medical jargon without explanation\n";
+    prompt += "- Overly structured responses\n";
+    prompt += "- Academic language\n";
+    prompt += "- Repetitive reassuring phrases (use one strong version instead)\n\n";
+    
+    prompt += "MAINTAIN:\n";
+    prompt += "- Medical accuracy and safety\n";
+    prompt += "- Evidence-based recommendations\n";
+    prompt += "- Appropriate urgency when needed\n";
+    prompt += "- Professional medical standards\n";
+    prompt += "- Confidence indicators where medically appropriate\n\n";
+    
+    prompt += "Think like you're sitting across from this person in your office, having a caring conversation about their health concerns.\n\n";
+    prompt += "Patient's Question: " + userQuery;
+    
+  } else {
+    // Research Mode
+    prompt = "You are MedGPT Scholar, an advanced medical research AI with deep analytical capabilities.\n\n";
+    
+    if (enableDeepThinking) {
+      prompt += "DEEP RESEARCH ANALYSIS MODE ACTIVATED\n\nYou will perform systematic evidence synthesis, critical appraisal, and multi-perspective analysis.\n\n";
+    }
+    
+    prompt += "You analyze medical literature with the rigor of a systematic reviewer, providing evidence-based answers with proper citations and critical evaluation.\n\n";
+    prompt += "🎯 **ENHANCED RESEARCH FRAMEWORK WITH COMPREHENSIVE DATABASE INTEGRATION:**\n\n";
+    
+    prompt += "**PHASE 1: ADVANCED SOURCE SCREENING & DATABASE UTILIZATION** (MANDATORY FIRST STEP)\n";
+    prompt += "Before proceeding with analysis, you MUST:\n";
+    prompt += "1. **COMPREHENSIVE DATABASE ASSESSMENT** - Consider evidence from all available sources:\n";
+    prompt += "   • PubMed (abstracts and citations)\n";
+    prompt += "   • PMC (full-text articles for detailed analysis)\n";
+    prompt += "   • DOAJ (open-access quality journals)\n";
+    prompt += "   • PLOS (high-impact open science)\n";
+    prompt += "   • BMC (biomedical research)\n";
+    prompt += "   • ClinicalTrials.gov (trial results and ongoing studies)\n";
+    prompt += "   • TRIP Database (evidence-based practice)\n";
+    prompt += "2. **DETAILED SCREENING LOG** (Transparent reporting required):\n";
+    prompt += "   Example: '20 papers screened: 5 included (RCTs, 2024-2025); 15 excluded (10 pre-2024, 3 irrelevant, 2 non-peer-reviewed)'\n";
+    prompt += "3. **PREDATORY JOURNAL FILTERING** - Exclude sources from predatory publishers\n";
+    prompt += "4. **TEMPORAL PRECISION** - Strictly adhere to user-specified timeframes\n";
+    prompt += "5. **CLINICAL RELEVANCE SCORING** - Rate each source 0-10 for PICO alignment\n\n";
+    
+    prompt += "**PHASE 2: ENHANCED EVIDENCE APPRAISAL** (Methodological Rigor)\n";
+    prompt += "For each included study, you MUST apply:\n";
+    prompt += "1. **STANDARDIZED BIAS ASSESSMENT TOOLS:**\n";
+    prompt += "   • RoB2 for RCTs (randomization, allocation concealment, blinding, incomplete data, selective reporting)\n";
+    prompt += "   • ROBINS-I for observational studies (confounding, selection bias, measurement bias)\n";
+    prompt += "   • AMSTAR-2 for systematic reviews (protocol registration, search strategy, study selection)\n";
+    prompt += "2. **CLINICAL RELEVANCE SCORING** (0-10 scale):\n";
+    prompt += "   • Population match to query (0-3 points)\n";
+    prompt += "   • Intervention/exposure relevance (0-3 points)\n";
+    prompt += "   • Outcome relevance (0-2 points)\n";
+    prompt += "   • Comparator appropriateness (0-2 points)\n";
+    prompt += "3. **PREDATORY JOURNAL DETECTION** using DOAJ whitelist verification\n\n";
+    
+    prompt += "**PHASE 3: META-ANALYTIC SYNTHESIS** (When Applicable)\n";
+    prompt += "When quantitative data from ≥2 studies is available:\n";
+    prompt += "1. **EFFECT SIZE POOLING** - Calculate pooled estimates (HR, RR, SMD) with 95% CI\n";
+    prompt += "2. **HETEROGENEITY ASSESSMENT** - Report I² statistics and sources of variation\n";
+    prompt += "3. **SUBGROUP ANALYSIS** - Explore population, intervention, or outcome differences\n";
+    prompt += "4. **PUBLICATION BIAS** - Assess and report potential bias in available literature\n\n";
+    
+    prompt += "RESEARCH ANALYSIS FRAMEWORK:\n\n";
+    prompt += "1. Evidence Quality Assessment\n";
+    prompt += "   - Study types and methodological quality\n";
+    prompt += "   - Risk of bias evaluation\n";
+    prompt += "   - Evidence hierarchy ranking\n\n";
+    prompt += "2. Systematic Evidence Synthesis\n";
+    prompt += "   - Convergent findings across studies\n";
+    prompt += "   - Conflicting evidence reconciliation\n";
+    prompt += "   - Research gaps identification\n\n";
+    prompt += "3. Clinical Relevance Analysis\n";
+    prompt += "   - Statistical vs clinical significance\n";
+    prompt += "   - Real-world applicability\n";
+    prompt += "   - Population generalizability\n\n";
+    prompt += "4. Critical Appraisal & Limitations\n";
+    prompt += "   - Study limitations and biases\n";
+    prompt += "   - Confidence in conclusions\n";
+    prompt += "   - Areas needing further research\n\n";
+    prompt += "5. Evidence-Based Conclusions\n";
+    prompt += "   - Strength of recommendations\n";
+    prompt += "   - Uncertainty quantification\n";
+    prompt += "   - Future research priorities\n\n";
+    prompt += "Use ONLY the research provided below. Cite studies by title and PMID/ID. Be transparent about evidence quality and limitations.\n\n";
+    prompt += "**CRITICAL INSTRUCTION FOR CITATION RELEVANCE:**\n";
+    prompt += "1. **ONLY cite trials that DIRECTLY answer the research question**\n";
+    prompt += "2. **DO NOT include landmark trials from the same field if they don't address the specific query**\n";
+    prompt += "3. **EXAMPLE**: For 'diabetes management', do NOT cite cardiac trials even if the patient has diabetes\n";
+    prompt += "4. **VERIFY each citation addresses the user's specific question before including it**\n";
+    prompt += "5. **If no relevant trials exist, state this clearly rather than citing tangentially related studies**\n\n";
+    prompt += "**CRITICAL INSTRUCTION FOR INADEQUATE SOURCES:**\n";
+    prompt += "If provided sources are unrelated to the research question:\n";
+    prompt += "1. **CLEARLY STATE** this limitation at the beginning of your response\n";
+    prompt += "2. **IDENTIFY MISSING LANDMARK STUDIES** by name and PMID - BUT ONLY if they DIRECTLY address the query\n";
+    prompt += "3. **DO NOT cite unrelated trials** from the same medical field\n";
+    prompt += "4. **USE ESTABLISHED MEDICAL KNOWLEDGE** but explicitly acknowledge this limitation\n";
+    prompt += "5. **RECOMMEND SPECIFIC SEARCHES** that would yield better evidence\n";
+    prompt += "6. **INCLUDE RELEVANT GUIDELINES** from major organizations (CDC, NICE, AHA, ESC) - ONLY if applicable\n";
+    prompt += "7. **EXAMPLE**: For 'migraine treatment', do NOT cite stroke prevention trials even though both are neurological\n\n";
+    prompt += "Research Question: " + userQuery;
+  }
+
+  // Add research sources
+  if (truncatedPapers.length > 0) {
+    if (mode === 'doctor') {
+      prompt += "\n\nSupporting Medical Literature:\n";
+      truncatedPapers.forEach((paper: Citation, index: number) => {
+        const identifier = paper.pmid ? `PMID: ${paper.pmid}` : `ID: ${paper.id}`;
+        prompt += `${index + 1}. "${paper.title}" – ${paper.journal}, ${paper.year} (${identifier})\n`;
+        prompt += `   Key Points: ${paper.abstract}\n`;
+      });
+    } else {    prompt += "\n\nResearch Sources (Academic Papers & FDA Resources):\n";
+    prompt += "**🎯 MANDATORY SOURCE VALIDATION PROTOCOL:**\n";
+    prompt += "For EACH source below, you MUST apply the Advanced Citation Relevance Training:\n";
+    prompt += "1. **Score each source 0-10** using the Relevance Precision Matrix\n";
+    prompt += "2. **Apply Citation Exclusion Rules** - automatically exclude sources scoring <7\n";
+    prompt += "3. **Verify Positive Citation Criteria** - only cite sources meeting ALL criteria\n";
+    prompt += "4. **Use Citation Quality Hierarchy** - prioritize higher-quality evidence\n";
+    prompt += "5. **Provide Transparency** - explain WHY each source is cited or excluded\n\n";
+    
+    prompt += "**📊 SOURCE ASSESSMENT TEMPLATE:**\n";
+    prompt += "For each source, internally assess:\n";
+    prompt += "• Population Match (0-3): Does study population match query?\n";
+    prompt += "• Intervention Match (0-3): Does study intervention match query focus?\n";
+    prompt += "• Outcome Match (0-2): Do study endpoints answer the question?\n";
+    prompt += "• Comparator Match (0-2): Are study comparisons relevant?\n";
+    prompt += "• **TOTAL SCORE: X/10** - Only cite if ≥7\n\n";
+    
+    prompt += "**⚠️ EXCLUSION EXAMPLES TO AVOID:**\n";
+    prompt += "• Query about 'SGLT2 vs DPP-4 inhibitors' → DON'T cite general diabetes trials (UKPDS, ADVANCE)\n";
+    prompt += "• Query about 'migraine treatment' → DON'T cite stroke prevention trials\n";
+    prompt += "• Query about 'chest pain evaluation' → DON'T cite heart failure management studies\n";
+    prompt += "• Query about drug safety → DON'T cite FDA reports about different drugs\n\n";
+    
+    truncatedPapers.forEach((paper: Citation, index: number) => {
+      const identifier = paper.pmid ? `PMID: ${paper.pmid}` : `ID: ${paper.id}`;
+      const evidenceLevel = getEvidenceLevel(paper.title || '');
+      const gradeConfidence = getGRADEConfidence(paper);
+      
+      // Apply enhanced source assessment
+      const assessment = assessSourceRelevanceAndQuality(paper, userQuery);
+      
+      prompt += `${index + 1}. [${evidenceLevel}] "${paper.title}" – ${paper.journal}, ${paper.year} (${identifier})\n`;
+      prompt += `   Summary: ${paper.abstract}\n`;
+      prompt += `   Quality: ${assessStudyQuality(paper)}\n`;
+      prompt += `   GRADE Confidence: ${gradeConfidence}\n`;
+      prompt += `   **RELEVANCE ASSESSMENT**: ${assessment.reasoning}\n`;
+      prompt += `   **CITATION DECISION**: ${assessment.shouldCite ? '✅ CITE' : '❌ EXCLUDE'} (Relevance: ${assessment.relevanceScore}/100, Quality: ${assessment.qualityScore}/100)\n`;
+      prompt += `   **MANDATORY CHECK**: Before citing, verify this source directly addresses: "${userQuery}"\n\n`;
+    });
+    }
+  } else if (mode === 'research') {
+    prompt += "\n\nResearch Sources:\n";
+    prompt += "⚠️ **CRITICAL SOURCE QUALITY ASSESSMENT REQUIRED:**\n";
+    prompt += "- If provided sources are unrelated to the query, you MUST state this clearly\n";
+    prompt += "- You MUST identify what landmark studies are missing from the provided sources\n";
+    prompt += "- When sources are irrelevant, rely on established medical knowledge but explicitly state this limitation\n";
+    prompt += "- **EXAMPLE**: 'The provided sources (COVID protocols, skin products) do not address smoking cessation. This response is based on established evidence from landmark trials not included in the search results.'\n";
+    prompt += "⚠️ No directly matching papers found for this specific query. Response will be based on established medical knowledge and general principles. Please search for more specific literature for evidence-based recommendations.";
+  }
+
+  // Add conversation history
+  if (conversationHistory && conversationHistory.length > 0) {
+    prompt += "\n\nPrevious Context:\n";
+    conversationHistory.slice(-2).forEach((message: any) => {
+      prompt += `${message.role.toUpperCase()}: ${message.content.substring(0, 200)}${message.content.length > 200 ? '...' : ''}\n`;
+    });
+  }
+
+  // Add response format requirements
+  prompt += "\n\n---\n\nRESPONSE FORMAT REQUIRED:\n";
+
+  if (mode === 'doctor') {
+    prompt += "\nRespond as a caring doctor having a natural conversation with a patient. Use enhanced formatting for clarity and better patient experience.\n\n";
+    prompt += "YOUR ENHANCED RESPONSE SHOULD INCLUDE:\n";
+    prompt += "- Natural, empathetic opening acknowledging their concerns\n";
+    prompt += "- **📊 CONFIDENCE ASSESSMENT:** **CRITICAL - Calculate dynamic confidence based on actual evidence quality and clinical certainty**:\n";
+    prompt += "  • **High Confidence (80-95%)**: Clear evidence from multiple high-quality studies, established medical consensus\n";
+    prompt += "  • **Moderate Confidence (60-79%)**: Good evidence with some limitations or conflicting studies\n";
+    prompt += "  • **Low Confidence (40-59%)**: Limited evidence, case reports, or significant uncertainty\n";
+    prompt += "  • **Very Low Confidence (20-39%)**: Insufficient evidence, expert opinion only, or conflicting data\n";
+    prompt += "  • **NO DETERMINATION (<20%)**: Inadequate evidence to make any clinical assessment\n";
+    prompt += "  • **CALCULATE BASED ON**: Evidence strength, study quality, clinical consensus, guideline support, and diagnostic certainty for this specific case\n";
+    prompt += "  • **EXAMPLE**: 'High confidence (87%) this is viral based on symptom pattern and established diagnostic criteria' or 'Low confidence (45%) - symptoms too vague to determine specific cause'\n";
+    prompt += "- **� POSSIBLE CAUSES:** Clear explanation with emoji bullets (✅ for likely, ⚠️ for concerning)\n";
+    prompt += "- **🔍 FOLLOW-UP TIMELINE:** Specific timeframes (e.g., 'If fever persists beyond 3 days, consult your physician')\n";
+    prompt += "- **🚨 SEEK IMMEDIATE CARE IF:** section with specific red flags\n";
+    prompt += "- **📋 NEXT STEPS:** Clear, numbered action items\n";
+    prompt += "- One strong, reassuring but honest conclusion (avoid repetitive phrases)\n\n";
+    prompt += "ENHANCED FORMATTING GUIDELINES:\n";
+    prompt += "- Use **bold** for important warnings and key points\n";
+    prompt += "- Use emoji bullets for better visual scanning:\n";
+    prompt += "  • ✅ for likely/benign causes\n";
+    prompt += "  • ⚠️ for concerning but manageable issues\n";
+    prompt += "  • 🚑 for emergency symptoms\n";
+    prompt += "  • 🧾 for expandable details (when appropriate)\n";
+    prompt += "- Use clear headings with emojis: '🚨 SEEK IMMEDIATE CARE IF:', '📋 NEXT STEPS:'\n";
+    prompt += "- **INCLUDE CONFIDENCE LEVELS** when medically appropriate (percentages or ranges)\n";
+    prompt += "- **PROVIDE SPECIFIC FOLLOW-UP TIMELINES** (e.g., '24-48 hours', 'within 3 days')\n";
+    prompt += "- Cover ALL possible causes without asking follow-up questions\n";
+    prompt += "- Present multiple diagnostic possibilities with relative likelihood\n";
+    prompt += "- Remove redundant reassuring phrases - use one strong version\n\n";
+    
+    prompt += "EXAMPLE RESPONSE STRUCTURE:\n";
+    prompt += "```\n";
+    prompt += "I understand your concern about [symptom]. Let me walk you through what might be happening.\n\n";
+    prompt += "**📊 CONFIDENCE ASSESSMENT:**\n";
+    prompt += "Calculate confidence based on symptom specificity, differential diagnosis clarity, and clinical presentation. Use medical judgment to determine likelihood ranges:\n";
+    prompt += "• **High confidence (80-95%)** for clear, specific symptoms with established diagnostic criteria\n";
+    prompt += "• **Moderate confidence (60-79%)** for typical presentations with some uncertainty\n";
+    prompt += "• **Low confidence (40-59%)** for vague symptoms or multiple possible causes\n";
+    prompt += "• **Very low confidence (<40%)** for insufficient information or rare conditions\n\n";
+    prompt += "**📋 POSSIBLE CAUSES:**\n";
+    prompt += "✅ **Most Likely:** [Common cause] - [brief explanation]\n";
+    prompt += "⚠️ **Less Common:** [Other causes] - [when to be concerned]\n";
+    prompt += "🚑 **Serious (but less likely):** [Emergency conditions] - [red flags]\n\n";
+    prompt += "**📋 NEXT STEPS:**\n";
+    prompt += "1. [Immediate self-care recommendations]\n";
+    prompt += "2. [Monitoring instructions]\n";
+    prompt += "3. [When to contact healthcare provider]\n\n";
+    prompt += "**🔍 FOLLOW-UP TIMELINE:**\n";
+    prompt += "If symptoms persist beyond [specific timeframe], or if you develop [specific warning signs], contact your physician.\n\n";
+    prompt += "**🚨 SEEK IMMEDIATE CARE IF:**\n";
+    prompt += "• [Specific emergency symptoms]\n";
+    prompt += "• [Other urgent warning signs]\n\n";
+    prompt += "[One clear, reassuring conclusion without repetitive phrases]\n";
+    prompt += "```\n\n";
+    prompt += "COMPREHENSIVE ASSESSMENT APPROACH:\n";
+    prompt += "**For Chest Pain & Shortness of Breath:**\n";
+    prompt += "- Cover cardiac causes (MI, angina, pericarditis)\n";
+    prompt += "- Cover pulmonary causes (PE, pneumonia, asthma, pneumothorax)\n";
+    prompt += "- Cover other causes (GERD, anxiety, musculoskeletal)\n";
+    prompt += "- Discuss risk factors for each possibility\n";
+    prompt += "- Provide age-stratified risk assessments\n\n";
+    prompt += "**For Other Symptoms:**\n";
+    prompt += "- Cover all major diagnostic categories\n";
+    prompt += "- Discuss urgency levels for each possibility\n";
+    prompt += "- Include relevant clinical decision tools and scores\n";
+    prompt += "- Provide comprehensive safety netting advice\n\n";
+    prompt += "**MEDICATION RECOMMENDATIONS - CRITICAL GUIDELINES:**\n";
+    prompt += "- **ONLY recommend medications when absolutely clinically necessary**\n";
+    prompt += "- **DO NOT routinely suggest medications for minor symptoms**\n";
+    prompt += "- **Focus first on non-pharmacological approaches** (rest, lifestyle, monitoring)\n";
+    prompt += "- **Recommend specific medications ONLY if:**\n";
+    prompt += "  • Symptoms suggest serious underlying condition requiring treatment\n";
+    prompt += "  • Patient safety is at risk without medication\n";
+    prompt += "  • Standard medical care clearly indicates medication is warranted\n";
+    prompt += "  • Over-the-counter remedies are insufficient for the severity\n";
+    prompt += "- **For common symptoms** (headache, mild pain, cold symptoms):\n";
+    prompt += "  • Emphasize rest, hydration, monitoring, and OTC options if appropriate\n";
+    prompt += "  • Avoid suggesting prescription medications unless truly indicated\n";
+    prompt += "- **Always emphasize** that any medication decisions should be made with their doctor\n";
+    prompt += "- **Prefer giving general categories** rather than specific drug names when possible\n\n";
+    
+    prompt += "- Keep the conversational doctor tone throughout\n";
+    prompt += "- Make it easy to scan for important information\n";
+    prompt += "- Provide comprehensive analysis without requiring additional patient input\n";
+    prompt += "- Cover all scenarios from low-risk to emergency situations";
+  } else {
+    prompt += "\nYou MUST structure your response to FIRST answer the user's question directly, then provide supporting evidence:\n\n";
+    
+    prompt += "🩺 **DIRECT CLINICAL ANSWER** (MANDATORY FIRST SECTION)\n";
+    prompt += "Start with a clear, confident answer to the user's specific question:\n";
+    prompt += "- **YES/NO/UNCERTAIN** with brief justification\n";
+    prompt += "- **Key Finding**: One-sentence summary of the main evidence\n";
+    prompt += "- **Clinical Bottom Line**: What this means for patient care\n";
+    prompt += "- **DYNAMIC CONFIDENCE CALCULATION**: Calculate confidence percentage based on actual evidence quality:\n";
+    prompt += "  • **High (85-95%)**: Multiple high-quality RCTs, meta-analyses, strong guidelines\n";
+    prompt += "  • **Moderate (65-84%)**: Some high-quality evidence with limitations\n";
+    prompt += "  • **Low (45-64%)**: Limited evidence, observational studies, conflicting results\n";
+    prompt += "  • **Very Low (25-44%)**: Case reports, expert opinion, inadequate evidence\n";
+    prompt += "  • **Insufficient (<25%)**: No relevant evidence found\n";
+    prompt += "Example: 'Yes, low-dose CT scans reduce all-cause mortality in long-term smokers compared to chest X-rays, based on the NLST trial showing 6.7% mortality reduction in high-risk individuals. **Confidence: 92%** based on large RCT with clear endpoints.'\n\n";
+    
+    prompt += "📊 **KEY EVIDENCE TABLE** (Simplified)\n";
+    prompt += "Present ONLY the most relevant 1-2 studies in a clear table:\n";
+    prompt += "| Study | Population | Primary Outcome | Key Results | Evidence Quality |\n";
+    prompt += "|-------|------------|------------------|-------------|------------------|\n";
+    prompt += "| [Trial Name + PMID] | [Brief description] | [Main endpoint] | [Quantified results with CI] | [HIGH/MOD/LOW + rationale] |\n\n";
+    
+    prompt += "🧠 **CLINICAL SIGNIFICANCE**\n";
+    prompt += "• **Why This Matters**: [Clinical relevance in 1-2 sentences]\n";
+    prompt += "• **Who Benefits**: [Target population and eligibility criteria]\n";
+    prompt += "• **Guidelines**: [Current recommendations from major organizations]\n\n";
+    
+    prompt += "⚠️ **IMPORTANT CAVEATS** (Brief)\n";
+    prompt += "• **Limitations**: [Key study limitations in 1-2 bullet points]\n";
+    prompt += "• **Not Recommended For**: [Populations where evidence doesn't apply]\n";
+    prompt += "• **Considerations**: [False positives, costs, or other practical issues]\n\n";
+    
+    prompt += "**👥 PATIENT-FRIENDLY SUMMARY**\n";
+    prompt += "• **What This Means**: [Plain language explanation]\n";
+    prompt += "• **Who Should Consider**: [Target population in simple terms]\n";
+    prompt += "• **Questions for Your Doctor**: [Practical patient guidance]\n\n";
+    
+    prompt += "---\n\n";
+    prompt += "## 🔍 **METHODOLOGY & ADDITIONAL EVIDENCE**\n\n";
+    
+    prompt += "**Database Search Summary**\n";
+    prompt += "- **Sources Checked**: [Brief list: PubMed, PMC, DOAJ, etc.]\n";
+    prompt += "- **Studies Reviewed**: [Number] total, [Number] included\n";
+    prompt += "- **Excluded**: [Number] (brief reasons: pre-timeframe, irrelevant, etc.)\n\n";
+    
+    prompt += "**Additional Supporting Studies**\n";
+    prompt += "[List 2-3 additional relevant studies with brief descriptions]\n\n";
+    
+    prompt += "**Evidence Quality Assessment**\n";
+    prompt += "- **Bias Assessment**: [Brief RoB2/ROBINS-I findings]\n";
+    prompt += "- **Heterogeneity**: [I² if meta-analysis applicable]\n";
+    prompt += "- **Publication Bias**: [Assessment if multiple studies]\n\n";
+    
+    prompt += "**🔴 Excluded Sources** (Transparency)\n";
+    prompt += "[List irrelevant sources with brief exclusion reasons]\n\n";
+    
+    prompt += "📋 **CLINICAL RECOMMENDATIONS** (Actionable Guidance)\n";
+    prompt += "Based on the evidence reviewed:\n";
+    prompt += "• **Strong Recommendation** (High confidence): [Clear action for clinicians]\n";
+    prompt += "• **Conditional Recommendation** (Moderate confidence): [Qualified guidance]\n";
+    prompt += "• **No Recommendation** (Insufficient evidence): [Areas needing research]\n";
+    prompt += "• **Implementation Considerations**: [Practical barriers, costs, training needs]\n\n";
+  }
+
+  // Add reasoning steps display if deep thinking is enabled
+  if (enableDeepThinking && reasoningStepsToUse.length > 0) {
+    prompt += generateDeepThinkingDisplay(reasoningStepsToUse, mode);
+  }
+
+  // Enhanced citation requirements for specific conditions
+  prompt += "**🏆 ENHANCED LANDMARK TRIAL CITATION SYSTEM:**\n";
+  prompt += "Apply STRICT RELEVANCE FILTERING before including ANY landmark trial:\n\n";
+  
+  prompt += "**CITATION DECISION FLOWCHART:**\n";
+  prompt += "1. ❓ Does this trial DIRECTLY study what the user asked?\n";
+  prompt += "   → NO: EXCLUDE immediately\n";
+  prompt += "   → YES: Continue to step 2\n";
+  prompt += "2. 👥 Does the trial population match the query context?\n";
+  prompt += "   → NO: EXCLUDE unless universally applicable\n";
+  prompt += "   → YES: Continue to step 3\n";
+  prompt += "3. 🎯 Do the trial outcomes answer the specific question?\n";
+  prompt += "   → NO: EXCLUDE even if related topic\n";
+  prompt += "   → YES: Continue to step 4\n";
+  prompt += "4. ⚖️ Is this the most relevant available evidence?\n";
+  prompt += "   → NO: Find more specific studies\n";
+  prompt += "   → YES: CITE with confidence\n\n";
+  
+  prompt += "**CONDITION-SPECIFIC LANDMARK CITATIONS:**\n";
+  prompt += "ONLY include trials from sections below if query specifically relates to that condition:\n\n";
+  
+  // Smoking cessation trials - ONLY for smoking cessation queries
+  if ((queryLower.includes('smoking cessation') || queryLower.includes('quit smoking') || queryLower.includes('tobacco cessation')) ||
+      (queryLower.includes('e-cigarette') && (queryLower.includes('cessation') || queryLower.includes('quit'))) ||
+      (queryLower.includes('vaping') && (queryLower.includes('cessation') || queryLower.includes('quit'))) ||
+      (queryLower.includes('nicotine replacement') && queryLower.includes('therapy'))) {
+    prompt += "**SMOKING CESSATION LANDMARK TRIALS (ONLY for cessation-related queries):**\n";
+    prompt += "- **Hajek et al. (NEJM 2019)** - PMID: 30699054 - E-cigarettes vs nicotine replacement therapy in UK randomized trial\n";
+    prompt += "- **Cochrane Review 2024** - PMID: 39365845 - Systematic review of e-cigarettes for smoking cessation\n";
+    prompt += "- **EAGLES Trial (NEJM 2016)** - PMID: 27120089 - Varenicline vs bupropion vs nicotine patch\n";
+    prompt += "- **Walker et al. (NEJM 2020)** - PMID: 31893517 - Combination nicotine replacement therapy\n";
+    prompt += "**KEY FINDINGS TO ADDRESS:**\n";
+    prompt += "- Hajek trial: E-cigarettes 18% vs NRT 9.9% quit rate at 1 year (RR 1.83, 95% CI 1.30-2.58)\n";
+    prompt += "- Cochrane 2024: Moderate-certainty evidence that e-cigarettes increase quit rates vs NRT\n";
+    prompt += "- Policy controversy: FDA concerns vs harm reduction perspectives\n\n";
+  }
+
+  // Cancer screening trials - ONLY for screening queries
+  if ((queryLower.includes('lung cancer') && queryLower.includes('screening')) ||
+      (queryLower.includes('ldct') || queryLower.includes('low-dose ct')) ||
+      (queryLower.includes('chest ct') && queryLower.includes('screening')) ||
+      (queryLower.includes('pulmonary nodule') && queryLower.includes('screening')) ||
+      (queryLower.includes('cancer screening') && queryLower.includes('lung'))) {
+    prompt += "**LUNG CANCER SCREENING LANDMARK TRIALS (ONLY for screening-related queries):**\n";
+    prompt += "- **NLST (National Lung Screening Trial)** - PMID: 21714641 - LDCT vs chest radiography in high-risk smokers\n";
+    prompt += "- **NELSON Trial** - PMID: 31995683 - European randomized trial of LDCT screening\n";
+    prompt += "- **MILD Trial** - PMID: 22867635 - Multicentric Italian Lung Detection trial\n";
+    prompt += "**KEY FINDINGS TO ADDRESS:**\n";
+    prompt += "- NLST: 20% reduction in lung cancer mortality, 6.7% reduction in all-cause mortality\n";
+    prompt += "- NELSON: 24% lung cancer mortality reduction in men, 33% in women\n";
+    prompt += "- Current USPSTF Grade B recommendation for annual screening in high-risk adults\n";
+    prompt += "**RESPONSE EXAMPLE FOR INADEQUATE SOURCES:**\n";
+    prompt += "'🩺 **DIRECT CLINICAL ANSWER**: YES - Low-dose CT scans reduce all-cause mortality in long-term smokers compared to chest X-rays, based on the landmark NLST trial showing 6.7% mortality reduction in high-risk individuals.'\n";
+    prompt += "📊 **LANDMARK EVIDENCE TABLE**:\n";
+    prompt += "| Study | Population | Primary Outcome | Key Results | Confidence |\n";
+    prompt += "|-------|------------|------------------|-------------|------------|\n";
+    prompt += "| NLST (PMID: 21714641) | 53,454 smokers (30+ pack-years) | All-cause mortality | ↓ 6.7% with LDCT | High |\n";
+    prompt += "| NELSON (PMID: 31995683) | 15,822 smokers | Lung cancer mortality | ↓ 24% in men, ↓ 33% in women with LDCT | High |\n";
+    prompt += "\n**Note**: None of the provided sources addressed this question; response based on established landmark evidence.\n\n";
+  }
+  
+  // Stroke prevention trials - ONLY for stroke/anticoagulation queries
+  if ((queryLower.includes('stroke') && (queryLower.includes('prevention') || queryLower.includes('anticoagul'))) ||
+      (queryLower.includes('afib') || queryLower.includes('atrial fibrillation')) ||
+      (queryLower.includes('anticoagul') && queryLower.includes('stroke'))) {
+    prompt += "**STROKE PREVENTION LANDMARK TRIALS (ONLY for stroke prevention/anticoagulation queries):**\n";
+    prompt += "- **NAVIGATE ESUS** (PMID: 29129157) - Rivaroxaban vs aspirin in embolic stroke of undetermined source\n";
+    prompt += "- **COMPASS** (PMID: 28844192) - Rivaroxaban plus aspirin in stable cardiovascular disease\n";
+    prompt += "- **SPARCL** (PMID: 16899775) - Atorvastatin for stroke prevention after recent stroke/TIA\n";
+    prompt += "- **RE-LY** (PMID: 19717844) - Dabigatran vs warfarin in atrial fibrillation\n";
+    prompt += "- **ARISTOTLE** (PMID: 21870978) - Apixaban vs warfarin in atrial fibrillation\n\n";
+  }
+  
+  // Check if query relates to specific cardiac conditions
+  if (queryLower.includes('brugada') || queryLower.includes('sudden cardiac death') || queryLower.includes('arrhythmia')) {
+    prompt += "**BRUGADA SYNDROME CITATIONS REQUIRED:**\n";
+    prompt += "- Brugada P, Brugada J, Brugada R. 'Right bundle branch block and ST elevation in leads V1-V3: A marker for sudden death in young adults' (Circulation, 1998) - Original discovery paper\n";
+    prompt += "- Antzelevitch C, Brugada P, Borggrefe M. 'Brugada syndrome: report of the second consensus conference' (Circulation, 2005) - Diagnostic criteria\n";
+    prompt += "- Priori SG, Wilde AA, Horie M. 'HRS/EHRA/APHRS expert consensus statement on the diagnosis and management of patients with inherited primary arrhythmia syndromes' (Heart Rhythm, 2013)\n\n";
+  }
+
+  // Lipid management and cardiovascular prevention
+  if (queryLower.includes('statin') || queryLower.includes('lipid') || queryLower.includes('cholesterol') || queryLower.includes('ldl')) {
+    prompt += "**LIPID MANAGEMENT LANDMARK TRIALS REQUIRED:**\n";
+    prompt += "- **4S Study** (PMID: 7968073) - Simvastatin survival study in coronary heart disease\n";
+    prompt += "- **PROVE-IT TIMI 22** (PMID: 15007110) - Intensive vs moderate lipid lowering with statins\n";
+    prompt += "- **FOURIER** (PMID: 28304224) - Evolocumab and cardiovascular outcomes\n";
+    prompt += "- **JUPITER** (PMID: 18997196) - Rosuvastatin for primary prevention in low LDL/high CRP\n\n";
+  }
+
+  // Heart failure trials
+  if (queryLower.includes('heart failure') || queryLower.includes('hfref') || queryLower.includes('hfpef') || queryLower.includes('ace inhibitor') || queryLower.includes('arb')) {
+    prompt += "**HEART FAILURE LANDMARK TRIALS REQUIRED:**\n";
+    prompt += "- **SOLVD** (PMID: 1463261) - Enalapril in patients with reduced ejection fraction\n";
+    prompt += "- **MERIT-HF** (PMID: 10320666) - Metoprolol in chronic heart failure\n";
+    prompt += "- **PARADIGM-HF** (PMID: 25176015) - Sacubitril-valsartan vs enalapril in heart failure\n";
+    prompt += "- **DAPA-HF** (PMID: 31535829) - Dapagliflozin in patients with heart failure and reduced ejection fraction\n\n";
+  }
+
+  // Diabetes management trials - ONLY for specific diabetes intervention comparisons
+  if ((queryLower.includes('diabetes') && (queryLower.includes('sglt2') || queryLower.includes('glp-1') || queryLower.includes('dpp-4') || queryLower.includes('metformin'))) ||
+      (queryLower.includes('sglt2') && (queryLower.includes('inhibitor') || queryLower.includes('dapagliflozin') || queryLower.includes('empagliflozin'))) ||
+      (queryLower.includes('glp-1') && (queryLower.includes('agonist') || queryLower.includes('liraglutide') || queryLower.includes('semaglutide'))) ||
+      (queryLower.includes('dpp-4') && queryLower.includes('inhibitor')) ||
+      (queryLower.includes('insulin') && (queryLower.includes('comparison') || queryLower.includes('versus') || queryLower.includes('vs')))) {
+    prompt += "**DIABETES MANAGEMENT TRIALS (ONLY for specific drug class comparisons or major diabetes outcomes):**\n";
+    prompt += "- **EMPA-REG OUTCOME** (PMID: 26378978) - Empagliflozin cardiovascular outcomes - 14% reduction in hospitalization for heart failure\n";
+    prompt += "- **CANVAS Program** (PMID: 28844192) - Canagliflozin cardiovascular outcomes - 33% reduction in hospitalization for heart failure\n";
+    prompt += "- **DECLARE-TIMI 58** (PMID: 30115556) - Dapagliflozin cardiovascular outcomes - 27% reduction in cardiovascular death/HF hospitalization\n";
+    prompt += "- **DAPA-HF** (PMID: 31535829) - Dapagliflozin in heart failure (includes diabetic and non-diabetic patients) - reinforces SGLT2 class effect\n";
+    prompt += "- **SAVOR-TIMI 53** (PMID: 23725061) - Saxagliptin DPP-4 inhibitor - neutral/slight increase in heart failure hospitalization\n";
+    prompt += "- **EXAMINE** (PMID: 23300168) - Alogliptin DPP-4 inhibitor - neutral for heart failure outcomes\n";
+    prompt += "- **Zelniker et al. Network Meta-analysis** (PMID: 30928122) - Comprehensive indirect comparison of diabetes drug classes for heart failure\n\n";
+    
+    prompt += "**CRITICAL DIABETES DRUG COMPARISON GUIDANCE:**\n";
+    prompt += "For SGLT2 vs DPP-4 inhibitor queries:\n\n";
+    
+    prompt += "**EVIDENCE SYNTHESIS APPROACH:**\n";
+    prompt += "1. **Primary Evidence**: Cite landmark SGLT2 trials (EMPA-REG, CANVAS, DECLARE-TIMI 58) showing HF benefits\n";
+    prompt += "2. **Comparator Evidence**: Cite DPP-4 trials (SAVOR-TIMI 53, EXAMINE) showing neutral/slight HF risk\n";
+    prompt += "3. **Network Meta-analyses**: Emphasize Zelniker et al. (PMID: 30928122) for indirect comparison\n";
+    prompt += "4. **DAPA-HF Context**: Include for class effect evidence, noting mixed diabetic/non-diabetic population\n\n";
+    
+    prompt += "**CONFIDENCE RATING FRAMEWORK:**\n";
+    prompt += "• **90-95% Confidence**: T2DM + established CVD population (direct RCT evidence)\n";
+    prompt += "• **85-90% Confidence**: T2DM + high CV risk (strong indirect evidence)\n";
+    prompt += "• **80-85% Confidence**: General T2DM population (extrapolated evidence)\n\n";
+    
+    prompt += "**IMPROVED EVIDENCE STATEMENTS:**\n";
+    prompt += "Instead of: 'Direct comparative evidence is lacking'\n";
+    prompt += "Use: 'While head-to-head trials are limited, multiple large cardiovascular outcome trials and network meta-analyses provide robust indirect evidence favoring SGLT2 inhibitors'\n\n";
+    
+    prompt += "Instead of: 'Sources do not directly address the question'\n";
+    prompt += "Use: 'Based on landmark cardiovascular outcome trials (EMPA-REG OUTCOME showing 35% HF reduction vs placebo; SAVOR-TIMI 53 showing neutral DPP-4 effects) and network meta-analyses, SGLT2 inhibitors demonstrate superior heart failure outcomes'\n\n";
+    
+    prompt += "**MANDATORY EXCLUSIONS FOR DIABETES QUERIES:**\n";
+    prompt += "• NEVER cite UKPDS for modern drug class comparisons (studies sulfonylureas/insulin from 1990s)\n";
+    prompt += "• NEVER cite bibliometric analyses or research trend studies\n";
+    prompt += "• NEVER cite FDA adverse event reports unless specifically about drug safety\n";
+    prompt += "• NEVER cite general diabetes management guidelines unless specifically relevant\n\n";
+  }
+
+  // Hypertension trials
+  if (queryLower.includes('hypertension') || queryLower.includes('blood pressure') || queryLower.includes('antihypertensive') || queryLower.includes('amlodipine')) {
+    prompt += "**HYPERTENSION LANDMARK TRIALS REQUIRED:**\n";
+    prompt += "- **ALLHAT** (PMID: 12479763) - Antihypertensive and Lipid-Lowering Treatment to Prevent Heart Attack Trial\n";
+    prompt += "- **SPRINT** (PMID: 26551272) - Systolic Blood Pressure Intervention Trial\n";
+    prompt += "- **ASCOT** (PMID: 16943563) - Anglo-Scandinavian Cardiac Outcomes Trial\n";
+    prompt += "- **VALUE** (PMID: 15364186) - Valsartan Antihypertensive Long-term Use Evaluation\n\n";
+  }
+  
+  if (queryLower.includes('long qt') || queryLower.includes('lqts') || queryLower.includes('torsades')) {
+    prompt += "**LONG QT SYNDROME CITATIONS REQUIRED:**\n";
+    prompt += "- Schwartz PJ, Moss AJ, Vincent GM, Crampton RS. 'Diagnostic criteria for the long QT syndrome' (Circulation, 1993) - Schwartz Score\n";
+    prompt += "- Priori SG, Schwartz PJ, Napolitano C. 'Risk stratification in the long-QT syndrome' (N Engl J Med, 2003) - Risk assessment\n";
+    prompt += "- Roden DM. 'Clinical practice. Long-QT syndrome' (N Engl J Med, 2008) - Comprehensive clinical review\n\n";
+  }
+  
+  if (queryLower.includes('cpvt') || queryLower.includes('catecholaminergic polymorphic ventricular tachycardia')) {
+    prompt += "**CPVT CITATIONS REQUIRED:**\n";
+    prompt += "- Priori SG, Napolitano C, Tiso N. 'Mutations in the cardiac ryanodine receptor gene (hRyR2) underlie catecholaminergic polymorphic ventricular tachycardia' (Circulation, 2001) - Genetic basis\n";
+    prompt += "- van der Werf C, Kannankeril PJ, Sacher F. 'Flecainide therapy reduces exercise-induced ventricular arrhythmias in patients with catecholaminergic polymorphic ventricular tachycardia' (J Am Coll Cardiol, 2011) - Treatment\n";
+    prompt += "- Hayashi M, Denjoy I, Extramiana F. 'Incidence and risk factors of arrhythmic events in catecholaminergic polymorphic ventricular tachycardia' (Circulation, 2009) - Prognosis\n\n";
+  }
+
+  // Cardiovascular imaging - ONLY for comparative imaging queries
+  if ((queryLower.includes('cac') || queryLower.includes('calcium score')) ||
+      (queryLower.includes('stress test') && (queryLower.includes('vs') || queryLower.includes('versus') || queryLower.includes('compared'))) ||
+      ((queryLower.includes('coronary') && queryLower.includes('calcium')) && (queryLower.includes('stress') || queryLower.includes('compare'))) ||
+      (queryLower.includes('ccta') && (queryLower.includes('stress') || queryLower.includes('compare')))) {
+    prompt += "**CARDIOVASCULAR IMAGING COMPARISON TRIALS (ONLY for imaging comparison queries):**\n";
+    prompt += "- Detrano R, Guerci AD, Carr JJ. 'Coronary calcium as a predictor of coronary events in four racial or ethnic groups' (MESA Study - NEJM, 2008) PMID: 18305265 - Landmark CAC prognostic study\n";
+    prompt += "- Douglas PS, Hoffmann U, Patel MR. 'Outcomes of anatomical versus functional testing for coronary artery disease' (PROMISE Trial - NEJM, 2015) PMID: 25773919 - Direct CAC/CCTA vs stress testing RCT\n";
+    prompt += "- Newby DE, Adamson PD, Berry C. 'Coronary CT angiography and 5-year risk of myocardial infarction' (SCOT-HEART - NEJM, 2018) PMID: 30145972 - CT angiography outcomes study\n";
+    prompt += "- Budoff MJ, Shaw LJ, Liu ST. 'Long-term prognosis associated with coronary calcification' (JACC, 2007) PMID: 17222726 - CAC prognostic value\n";
+    prompt += "- Hecht HS, Cronin P, Blaha MJ. 'ACC/AHA versus ESC coronary artery calcium scoring' (JACC Cardiovasc Imaging, 2015) PMID: 25890584 - CAC guidelines comparison\n";
+    prompt += "- Min JK, Leipsic J, Pencina MJ. 'Diagnostic accuracy of fractional flow reserve from anatomic CT angiography' (CONFIRM Registry - JAMA, 2012) PMID: 22474203 - CCTA diagnostic accuracy\n\n";
+  }
+  
+  prompt += "**🚫 MANDATORY SOURCE EXCLUSION PROTOCOL:**\n";
+  prompt += "DO NOT cite ANY of the following, even if provided in search results:\n\n";
+  
+  prompt += "**AUTOMATIC EXCLUSIONS (NEVER CITE):**\n";
+  prompt += "❌ **FDA adverse event reports for unrelated drugs** (e.g., prednisone, paclitaxel for diabetes queries)\n";
+  prompt += "❌ **Drug recalls unrelated to the medical condition** being discussed\n";
+  prompt += "❌ **General disease trials when specific drug comparisons are requested** (e.g., UKPDS for SGLT2 vs DPP-4)\n";
+  prompt += "❌ **Studies from different medical subspecialties** unless directly relevant\n";
+  prompt += "❌ **Historical trials that don't study the interventions mentioned** in the query\n";
+  prompt += "❌ **Case reports or anecdotal evidence when systematic evidence exists**\n";
+  prompt += "❌ **Pharmaceutical company marketing materials** or promotional content\n\n";
+  
+  prompt += "**SPECIFIC EXCLUSION EXAMPLES:**\n";
+  prompt += "• Query: 'SGLT2 vs DPP-4 inhibitors' → ❌ NEVER cite UKPDS (doesn't compare these drug classes)\n";
+  prompt += "• Query: 'Diabetes medications' → ❌ NEVER cite FDA reports for prednisone, paclitaxel, etc.\n";
+  prompt += "• Query: 'Heart failure treatment' → ❌ NEVER cite drug recalls for unrelated medications\n";
+  prompt += "• Query: 'Migraine management' → ❌ NEVER cite stroke prevention trials unless specifically relevant\n\n";
+  
+  prompt += "**CITATION FILTERING MANDATE:**\n";
+  prompt += "1. **BEFORE citing any source**: Ask 'Does this DIRECTLY answer the user's specific question?'\n";
+  prompt += "2. **IF NO**: Do not cite it, regardless of quality or fame\n";
+  prompt += "3. **IF UNCERTAIN**: Err on the side of exclusion\n";
+  prompt += "4. **EXPLAIN EXCLUSIONS**: If major sources are excluded, briefly explain why\n";
+  prompt += "5. **FOCUS ON RELEVANT EVIDENCE**: Better to cite 2 highly relevant studies than 5 mixed-relevance ones\n\n";
+  
+  prompt += "**IMPROVED EVIDENCE STATEMENTS:**\n";
+  prompt += "Instead of: 'Direct comparative evidence is lacking'\n";
+  prompt += "Say: 'While head-to-head RCTs are limited, network meta-analyses consistently show [specific finding]'\n\n";
+  
+  prompt += "Instead of: 'Sources do not directly address the question'\n";
+  prompt += "Say: 'Available network meta-analyses (e.g., [specific PMID]) provide comparative data showing [finding]'\n\n";
+  
+  // Enhanced meta-analysis requirements
+  prompt += "**ENHANCED META-ANALYSIS REQUIREMENTS:**\n";
+  prompt += "When quantitative data from ≥2 studies is available:\n";
+  prompt += "1. **AUTOMATIC META-ANALYSIS** - Calculate pooled effect sizes (HR, RR, SMD) with 95% CI\n";
+  prompt += "2. **HETEROGENEITY ASSESSMENT** - Report I² statistics and explore sources of variation\n";
+  prompt += "3. **PATIENT-FRIENDLY RISK COMMUNICATION:**\n";
+  prompt += "   • Natural frequency formats (\"Out of 100 people like you...\")\n";
+  prompt += "   • Risk comparison narratives\n";
+  prompt += "   • Treatment timeline descriptions\n";
+  prompt += "   • Side effect frequency summaries\n\n";
+  prompt += "**PATIENT-FRIENDLY SUMMARIES:**\n";
+  prompt += "For patient summaries, provide clear explanations:\n";
+  prompt += "- Risk comparisons in plain language\n";
+  prompt += "- Treatment timeline descriptions\n";
+  prompt += "- Side effect frequency explanations\n";
+  prompt += "- Cost comparison information\n\n";    prompt += "- Cost comparison tables\n\n";
+    
+    prompt += "**📝 REDESIGNED STRUCTURE FOR INSUFFICIENT EVIDENCE QUERIES:**\n";
+    prompt += "When provided sources are inadequate, ALWAYS prioritize known landmark evidence:\n\n";
+    prompt += "**🩺 DIRECT CLINICAL ANSWER** (Lead with landmark trials)\n";
+    prompt += "• Check for well-known landmark trials that directly address the question\n";
+    prompt += "• Provide YES/NO/UNCERTAIN based on established evidence\n";
+    prompt += "• Example: 'YES - Low-dose CT scans reduce all-cause mortality in long-term smokers based on the NLST trial showing 6.7% mortality reduction'\n\n";
+    prompt += "**📊 LANDMARK EVIDENCE TABLE** (Priority over provided sources)\n";
+    prompt += "| Study | Population | Primary Outcome | Result | GRADE Confidence |\n";
+    prompt += "|-------|------------|------------------|--------|------------------|\n";
+    prompt += "| NLST (PMID: 21714641) | 53,454 smokers | All-cause mortality | ↓ 6.7% with LDCT | High |\n";
+    prompt += "| [Add other relevant landmarks] | [Population] | [Outcome] | [Result] | [Confidence] |\n\n";
+    prompt += "**📋 CLINICAL GUIDELINE SUMMARY**\n";
+    prompt += "• **Current Recommendations**: [USPSTF, AHA, ESC, NICE guidelines]\n";
+    prompt += "• **Target Population**: [Specific eligibility criteria]\n";
+    prompt += "• **Implementation**: [How guidelines are applied clinically]\n\n";
+    prompt += "**⚠️ IMPORTANT CAVEATS** (Brief)\n";
+    prompt += "• **Limitations**: [Key practical considerations]\n";
+    prompt += "• **False Positives/Negatives**: [Clinical implications]\n";
+    prompt += "• **Cost-Effectiveness**: [Economic considerations]\n\n";
+    prompt += "**👥 PATIENT-FRIENDLY SUMMARY**\n";
+    prompt += "• **What This Means**: [Plain language explanation]\n";
+    prompt += "• **Who Should Consider**: [Target population in simple terms]\n";
+    prompt += "• **Questions for Your Doctor**: [Practical patient guidance]\n\n";
+    prompt += "---\n\n";
+    prompt += "## 🔍 **SOURCE ASSESSMENT**\n\n";
+    prompt += "**❌ PROVIDED SOURCES EVALUATION**\n";
+    prompt += "• None of the [X] provided sources directly addressed this question\n";
+    prompt += "• Sources were: [brief list with exclusion reasons]\n";
+    prompt += "• Recommendation: Search specifically for [landmark trial names]\n\n";
+    prompt += "**✅ FALLBACK EVIDENCE SOURCES**\n";
+    prompt += "• **Landmark Trials**: [Manually cited based on clinical knowledge]\n";
+    prompt += "• **Guidelines**: [Major organization recommendations]\n";
+    prompt += "• **Cochrane Reviews**: [If available for this topic]\n\n";
+    prompt += "**🔍 RECOMMENDED FUTURE SEARCHES**\n";
+    prompt += "• **PubMed Query**: [Specific search terms for better results]\n";
+    prompt += "• **Missing Evidence**: [What additional studies would strengthen conclusions]\n\n";
+    
+  // Final Citation Training Summary
+  prompt += "**🎓 CITATION EXCELLENCE TRAINING COMPLETE:**\n";
+  prompt += "You have been trained with advanced citation algorithms that:\n";
+  prompt += "✅ **Score relevance 0-100** using population, intervention, outcome, and comparator matching\n";
+  prompt += "✅ **Assess quality 0-100** using study design, journal impact, methodology, and recency\n";
+  prompt += "✅ **Apply minimum thresholds** (≥70 relevance, ≥50 quality) for citation inclusion\n";
+  prompt += "✅ **Provide transparent reasoning** for every citation decision\n";
+  prompt += "✅ **Exclude irrelevant studies** even if they're high-quality landmark trials\n";
+  prompt += "✅ **Prioritize direct evidence** over tangentially related studies\n\n";
+  
+  prompt += "**MANDATORY PRE-CITATION CHECKLIST:**\n";
+  prompt += "Before citing ANY study, verify:\n";
+  prompt += "□ Study population matches query context (≥2/3 points)\n";
+  prompt += "□ Study intervention/exposure matches query focus (≥2/3 points)\n";
+  prompt += "□ Study outcomes directly answer the question (≥1/2 points)\n";
+  prompt += "□ Study comparisons are relevant if requested (≥1/2 points)\n";
+  prompt += "□ **TOTAL SCORE ≥7/10** - Only cite if this threshold is met\n";
+  prompt += "□ Explain WHY this specific study is relevant to the query\n\n";
+  
+  prompt += "**📊 ENHANCED CONFIDENCE RATING SYSTEM:**\n";
+  prompt += "Use population-specific confidence ratings:\n\n";
+  
+  prompt += "**HIGH CONFIDENCE (90-95%):**\n";
+  prompt += "• Multiple large RCTs with consistent findings\n";
+  prompt += "• Network meta-analyses with low heterogeneity\n";
+  prompt += "• Well-defined patient populations (e.g., T2DM + established CVD)\n";
+  prompt += "• Clear clinical significance and guideline support\n\n";
+  
+  prompt += "**MODERATE CONFIDENCE (75-89%):**\n";
+  prompt += "• Some direct RCT evidence with indirect comparisons\n";
+  prompt += "• Consistent findings across studies but limited head-to-head data\n";
+  prompt += "• Broader patient populations with some uncertainty\n\n";
+  
+  prompt += "**EVIDENCE INTERPRETATION GUIDELINES:**\n";
+  prompt += "• **Network Meta-analyses**: Emphasize their value for indirect comparisons\n";
+  prompt += "• **Missing Head-to-head Trials**: Acknowledge but don't overstate limitation\n";
+  prompt += "• **Population Specificity**: Always clarify which patient groups evidence applies to\n";
+  prompt += "• **Clinical Significance**: Focus on magnitude of benefit and clinical relevance\n\n";
+  
+  prompt += "**IMPROVED EVIDENCE LANGUAGE:**\n";
+  prompt += "Replace: 'Direct comparative evidence is lacking'\n";
+  prompt += "With: 'While direct head-to-head trials are limited, high-quality network meta-analyses consistently demonstrate [specific finding]'\n\n";
+  
+  prompt += "Replace: 'Sources do not directly address the question'\n";
+  prompt += "With: 'Available evidence from network meta-analyses (e.g., PMID: X) provides robust comparative data for [specific populations]'\n\n";
+
+  return prompt;
+}
+
+/**
+ * Assess evidence level of a study based on title and design
+ */
+function getEvidenceLevel(title: string): string {
+  const titleLower = title.toLowerCase();
+  if (titleLower.includes('meta-analysis') || titleLower.includes('systematic review')) {
+    return 'Level 1 (High) - Meta-analysis/Systematic Review';
+  } else if (titleLower.includes('randomized') || titleLower.includes('controlled trial') || titleLower.includes('rct')) {
+    return 'Level 2 (Moderate) - Randomized Controlled Trial';
+  } else if (titleLower.includes('registry') || titleLower.includes('national database') || titleLower.includes('surveillance')) {
+    return 'Level 2 (Moderate-High) - Registry/Database Study';
+  } else if (titleLower.includes('autopsy') || titleLower.includes('pathological') || titleLower.includes('forensic')) {
+    return 'Level 3 (Moderate) - Autopsy/Pathological Study';
+  } else if (titleLower.includes('cohort') || titleLower.includes('longitudinal') || titleLower.includes('prospective')) {
+    return 'Level 3 (Moderate) - Cohort Study';
+  } else if (titleLower.includes('case-control') || titleLower.includes('cross-sectional') || titleLower.includes('retrospective')) {
+    return 'Level 4 (Low) - Case-Control/Cross-sectional';
+  } else if (titleLower.includes('case report') || titleLower.includes('case series')) {
+    return 'Level 5 (Very Low) - Case Report/Series';
+  } else if (titleLower.includes('guideline') || titleLower.includes('consensus') || titleLower.includes('expert')) {
+    return 'Level 3 (Moderate) - Clinical Guideline/Expert Consensus';
+  } else {
+    return 'Level 4 (Low) - Observational Study';
+  }
+}
+
+/**
+ * Assess study quality for display
+ */
+function assessStudyQuality(paper: Citation): string {
+  const title = (paper.title || '').toLowerCase();
+  let quality = [];
+  
+  if (title.includes('systematic review') || title.includes('meta-analysis')) {
+    quality.push('High methodological rigor');
+  }
+  if (title.includes('randomized')) {
+    quality.push('RCT design');
+  }
+  if (title.includes('double-blind') || title.includes('placebo-controlled')) {
+    quality.push('Strong blinding');
+  }
+  if (title.includes('registry') || title.includes('national database')) {
+    quality.push('Large population registry');
+  }
+  if (title.includes('autopsy') || title.includes('pathological')) {
+    quality.push('Definitive pathological diagnosis');
+  }
+  if (title.includes('maron') || title.includes('pelliccia') || title.includes('cardiac')) {
+    quality.push('Cardiac expertise');
+  }
+  if (paper.year) {
+    const year = typeof paper.year === 'string' ? parseInt(paper.year) : paper.year;
+    if (year >= 2020) {
+      quality.push('Recent evidence');
+    }
+  }
+  if (title.includes('guideline') || title.includes('consensus')) {
+    quality.push('Expert consensus');
+  }
+  
+  return quality.length > 0 ? quality.join(', ') : 'Standard observational study';
+}
+
+/**
+ * Generate GRADE confidence rating based on study design and quality - ENHANCED VERSION
+ */
+function getGRADEConfidence(paper: Citation): string {
+  const title = (paper.title || '').toLowerCase();
+  const journal = (paper.journal || '').toLowerCase();
+  const year = typeof paper.year === 'string' ? parseInt(paper.year) || 2000 : paper.year || 2000;
+  
+  // Advanced confidence scoring system (0-100 scale)
+  let confidenceScore = 0;
+  
+  // STUDY DESIGN SCORING (0-40 points)
+  if (title.includes('meta-analysis') && title.includes('systematic review')) {
+    confidenceScore += 40; // Highest evidence
+  } else if (title.includes('meta-analysis') || title.includes('systematic review')) {
+    confidenceScore += 35;
+  } else if (title.includes('randomized controlled trial') || title.includes('rct') || title.includes('randomized')) {
+    confidenceScore += 30;
+  } else if (title.includes('registry') || title.includes('national database') || title.includes('surveillance')) {
+    confidenceScore += 25; // Large population data
+  } else if (title.includes('prospective') && title.includes('cohort')) {
+    confidenceScore += 20;
+  } else if (title.includes('cohort') || title.includes('longitudinal')) {
+    confidenceScore += 15;
+  } else if (title.includes('case-control')) {
+    confidenceScore += 10;
+  } else if (title.includes('cross-sectional')) {
+    confidenceScore += 8;
+  } else if (title.includes('case series')) {
+    confidenceScore += 5;
+  } else if (title.includes('case report')) {
+    confidenceScore += 2;
+  }
+  
+  // JOURNAL QUALITY SCORING (0-15 points)
+  const highImpactJournals = ['new england journal of medicine', 'nejm', 'lancet', 'jama', 
+    'nature medicine', 'science', 'cell', 'circulation', 'journal of the american college of cardiology',
+    'jacc', 'european heart journal', 'annals of internal medicine'];
+  const goodJournals = ['plos medicine', 'bmj', 'american heart journal', 'heart rhythm',
+    'diabetes care', 'journal of clinical oncology'];
+  
+  if (highImpactJournals.some(j => journal.includes(j))) {
+    confidenceScore += 15;
+  } else if (goodJournals.some(j => journal.includes(j))) {
+    confidenceScore += 10;
+  } else if (journal.includes('cochrane')) {
+    confidenceScore += 15; // Cochrane reviews are high quality
+  } else if (journal.length > 0) {
+    confidenceScore += 5; // Peer-reviewed publication
+  }
+  
+  // METHODOLOGICAL QUALITY (0-20 points)
+  if (title.includes('double-blind') || title.includes('double blind')) {
+    confidenceScore += 8;
+  }
+  if (title.includes('placebo-controlled') || title.includes('placebo controlled')) {
+    confidenceScore += 7;
+  }
+  if (title.includes('multicenter') || title.includes('multicentre')) {
+    confidenceScore += 5;
+  }
+  
+  // LANDMARK TRIAL BONUS (0-10 points)
+  const landmarkTrials = [
+    'navigate esus', 'compass', 'sparcl', 'aristotle', 'rely', 're-ly', 'paradigm', 'fourier', 
+    'jupiter', 'mesa', 'promise', 'scot-heart', 'nlst', 'nelson', 'accord', 'advance',
+    'empa-reg', 'leader', 'sustain', 'declare', 'canvas', 'credence', 'dapa-hf',
+    'sprint', 'allhat', 'ascot', 'hope', 'life', 'value', 'ontarget'
+  ];
+  if (landmarkTrials.some(trial => title.includes(trial))) {
+    confidenceScore += 10;
+  }
+  
+  // RECENCY SCORING (0-10 points)
+  if (year >= 2023) {
+    confidenceScore += 10;
+  } else if (year >= 2020) {
+    confidenceScore += 8;
+  } else if (year >= 2015) {
+    confidenceScore += 6;
+  } else if (year >= 2010) {
+    confidenceScore += 4;
+  } else if (year >= 2000) {
+    confidenceScore += 2;
+  }
+  
+  // SAMPLE SIZE ESTIMATION (0-5 points)
+  if (title.includes('large') || title.includes('national') || title.includes('international')) {
+    confidenceScore += 3;
+  }
+  if (title.includes('registry') || title.includes('database')) {
+    confidenceScore += 2;
+  }
+  
+  // PENALTIES
+  if (title.includes('pilot') || title.includes('feasibility')) {
+    confidenceScore -= 10; // Preliminary studies
+  }
+  if (title.includes('retrospective') && !title.includes('registry')) {
+    confidenceScore -= 5; // Retrospective bias
+  }
+  if (year < 2005 && !landmarkTrials.some(trial => title.includes(trial))) {
+    confidenceScore -= 10; // Outdated unless landmark
+  }
+  
+  // Ensure score is within bounds
+  confidenceScore = Math.max(0, Math.min(100, confidenceScore));
+  
+  // Convert to descriptive GRADE ratings with confidence percentages
+  if (confidenceScore >= 85) {
+    return `VERY HIGH (95%+ confidence) - ${getConfidenceJustification(confidenceScore, title, journal, year)}`;
+  } else if (confidenceScore >= 70) {
+    return `HIGH (85-95% confidence) - ${getConfidenceJustification(confidenceScore, title, journal, year)}`;
+  } else if (confidenceScore >= 50) {
+    return `MODERATE (65-85% confidence) - ${getConfidenceJustification(confidenceScore, title, journal, year)}`;
+  } else if (confidenceScore >= 30) {
+    return `LOW (40-65% confidence) - ${getConfidenceJustification(confidenceScore, title, journal, year)}`;
+  } else {
+    return `VERY LOW (<40% confidence) - ${getConfidenceJustification(confidenceScore, title, journal, year)}`;
+  }
+}
+
+/**
+ * Provide specific justification for confidence rating
+ */
+function getConfidenceJustification(score: number, title: string, journal: string, year: number): string {
+  const reasons = [];
+  
+  if (title.includes('meta-analysis') || title.includes('systematic review')) {
+    reasons.push('systematic review/meta-analysis');
+  } else if (title.includes('randomized')) {
+    reasons.push('RCT design');
+  } else if (title.includes('registry') || title.includes('database')) {
+    reasons.push('large registry data');
+  }
+  
+  if (title.includes('double-blind')) {
+    reasons.push('double-blinded');
+  }
+  
+  if (journal.includes('nejm') || journal.includes('lancet') || journal.includes('jama')) {
+    reasons.push('high-impact journal');
+  }
+  
+  if (year >= 2020) {
+    reasons.push('recent evidence');
+  } else if (year < 2010) {
+    reasons.push('older evidence');
+  }
+  
+  const landmarkTrials = ['navigate esus', 'compass', 'sparcl', 'aristotle', 'rely', 'paradigm', 'fourier', 'jupiter', 'mesa', 'promise', 'scot-heart'];
+  if (landmarkTrials.some(trial => title.includes(trial))) {
+    reasons.push('landmark trial');
+  }
+  
+  return reasons.length > 0 ? reasons.join(', ') : 'standard observational study';
+}
+
+export function createResearchQueryPrompt(userQuery: string): string {
+  return `Given the following medical question, generate 2-3 optimal search queries for medical research databases (PubMed, Semantic Scholar) using biomedical terminology that matches actual research paper titles.
+
+User Question: "${userQuery}"
+
+Generate search queries that:
+1. Use appropriate medical terminology and MeSH terms
+2. Transform colloquial language into research terminology
+3. Focus on finding recent, peer-reviewed research
+4. Include alternative phrasings using biomedical synonyms
+5. Consider how researchers actually title their papers
+
+Examples of good transformations:
+- "dose calculation" → "dose translation animal to human" OR "mg/kg conversion" OR "allometric scaling"
+- "side effects" → "adverse effects" OR "drug safety" OR "toxicology profile"
+- "how does it work" → "mechanism of action" OR "pharmacodynamics" OR "molecular mechanism"
+
+Format your response as a JSON array of strings:
+["query1", "query2", "query3"]
+
+Search queries:`;
+}
+
+export function createSummaryPrompt(papers: Citation[]): string {
+  if (papers.length === 0) {
+    return "No research papers available to summarize.";
+  }
+
+  let prompt = `Please provide a brief summary of the key findings from these medical research papers:
+
+`;
+
+  papers.forEach((paper, index) => {
+    prompt += `${index + 1}. "${paper.title}" (${paper.journal}, ${paper.year})
+   Abstract: ${paper.abstract || "Abstract not available"}
+
+`;
+  });
+
+  prompt += `Summary should:
+- Highlight the main findings and conclusions
+- Note any consensus or conflicting results
+- Be concise but informative (2-3 paragraphs)
+- Use proper medical terminology
+- Focus on clinical relevance
+
+Summary:`;
+
+  return prompt;
+}
+
+export function validateMedicalQuery(query: string): {
+  isValid: boolean;
+  reason?: string;
+  suggestions?: string[];
+} {
+  const trimmedQuery = query.trim();
+
+  // Basic validation
+  if (trimmedQuery.length < 3) {
+    return {
+      isValid: false,
+      reason: "Query too short",
+      suggestions: ["Please provide a more detailed medical question"],
+    };
+  }
+
+  if (trimmedQuery.length > 500) {
+    return {
+      isValid: false,
+      reason: "Query too long",
+      suggestions: ["Please shorten your question to focus on the main topic"],
+    };
+  }
+
+  // Check for inappropriate content (basic implementation)
+  const inappropriatePatterns = [
+    /personal medical advice/i,
+    /diagnose me/i,
+    /what do i have/i,
+    /am i dying/i,
+    /emergency/i,
+  ];
+
+  for (const pattern of inappropriatePatterns) {
+    if (pattern.test(trimmedQuery)) {
+      return {
+        isValid: false,
+        reason: "Inappropriate request for personal medical advice",
+        suggestions: [
+          "This tool is for educational purposes only",
+          "Please consult a healthcare professional for personal medical concerns",
+          "Try asking about general medical concepts or conditions instead",
+        ],
+      };
+    }
+  }
+
+  return { isValid: true };
+}
+
+export interface SourceFinderContext {
+  textSnippet: string;
+  searchResults: any[];
+  conversationHistory?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
+}
+
+export function createSourceFinderPrompt(context: SourceFinderContext): string {
+  const { textSnippet, searchResults, conversationHistory } = context;
+
+  let prompt = `You are MedGPT Scholar's Source Finder, an expert at identifying the origins of medical and scientific text snippets.
+
+Your task: Analyze the provided text snippet and help identify its most likely sources from the search results below.
+
+TEXT SNIPPET TO ANALYZE:
+"${textSnippet}"
+
+SEARCH RESULTS FROM MEDICAL DATABASES:
+`;
+
+  if (searchResults && searchResults.length > 0) {
+    searchResults.slice(0, 8).forEach((result, index) => {
+      prompt += `
+${index + 1}. Title: "${result.title || 'No title'}"
+   Journal: ${result.journal || result.venue || 'Unknown'}
+   Year: ${result.publishedDate || result.year || 'Unknown'}
+   Source: ${result.source || 'Unknown'}
+   ${result.pmid ? `PMID: ${result.pmid}` : result.paperId ? `Paper ID: ${result.paperId}` : `ID: ${result.id || 'Unknown'}`}
+   Abstract: ${result.abstract ? (result.abstract.length > 300 ? result.abstract.substring(0, 300) + "..." : result.abstract) : 'No abstract available'}
+   Relevance Score: ${result.relevanceScore || 'N/A'}
+`;
+    });
+  } else {
+    prompt += "\nNo matching research papers found in the databases for this text snippet.";
+  }
+
+  prompt += `
+
+ANALYSIS INSTRUCTIONS:
+1. **Exact Match Detection**: Look for papers that might contain the exact or nearly exact text
+2. **Paraphrase Identification**: Identify papers that express the same information in different words
+3. **Source Type Analysis**: Determine if this is likely from a primary study, review, guideline, or textbook
+4. **Citation Confidence**: Rate likelihood each paper is the actual source (Very High/High/Moderate/Low)
+5. **Multiple Source Possibility**: Consider that the statement might appear in multiple publications
+6. **Verification Strategy**: Provide specific steps to confirm the source
+
+RESPONSE FORMAT:
+Provide a comprehensive analysis in this format:
+
+## Comprehensive Source Analysis
+
+**Primary Source Candidates (Most Likely Origins):**
+[List top 3-5 most probable original sources with detailed explanations]
+
+**Secondary Sources (Likely Citations/References):**
+[List papers that probably cite or reference the original source]
+
+**Key Claims Breakdown:**
+[Extract and analyze each major claim in the text snippet]
+
+**Citation Confidence Levels:**
+- **Very High Confidence**: [Papers that almost certainly contain this text]
+- **High Confidence**: [Papers very likely to contain similar information]
+- **Moderate Confidence**: [Papers that cover the same topic but may not be the source]
+
+**Source Type Assessment:**
+[Determine if this appears to be from: Primary research, Meta-analysis, Review article, Clinical guideline, Textbook, etc.]
+
+**Complete Verification Protocol:**
+1. [Specific database searches to perform]
+2. [Exact phrases to search for in quotation marks]
+3. [Author names or institutions to investigate]
+4. [Alternative search strategies if initial searches fail]
+
+**Cross-Reference Opportunities:**
+[Suggest related papers that might reference the same findings]
+
+**Potential Complications:**
+[Note any factors that might make source identification difficult]
+
+Be extremely thorough and consider all possibilities. If multiple papers could be the source, explain the likelihood of each.`;
+
+  if (conversationHistory && conversationHistory.length > 0) {
+    prompt += `\n\nCONVERSATION CONTEXT:\n`;
+    conversationHistory.slice(-3).forEach((msg, index) => {
+      prompt += `${msg.role.toUpperCase()}: ${msg.content}\n`;
+    });
+  }
+
+  return prompt;
+}
+
+/**
+ * Generate deep thinking structure display for prompts
+ */
+function generateDeepThinkingDisplay(reasoningSteps: ReasoningStep[], mode: string): string {
+  // Reasoning process hidden from user view - users don't want to see technical reasoning
+  return '';
+}
+
+/**
+ * Create enhanced medical research prompt with comprehensive optimization features
+ * Implements the 6-phase improvement plan for all medical domains
+ */
+export function createOptimizedMedicalPrompt(context: EnhancedMedicalPromptContext): string {
+  const basePrompt = createEnhancedMedicalPrompt(context);
+  
+  // Add domain-specific optimization instructions
+  const optimizationInstructions = `
+
+🚀 **MEDGPT SCHOLAR OPTIMIZATION FRAMEWORK - ALL MEDICAL DOMAINS**
+
+**PHASE 1: COMPREHENSIVE EVIDENCE RETRIEVAL**
+- **Multi-Database Integration**: PubMed, PMC, DOAJ, PLOS, BMC, ClinicalTrials.gov, TRIP Database
+- **NLP Query Optimization**: Generate domain-specific queries with MeSH terms and synonyms
+- **Temporal Filtering**: Strict adherence to user-specified timeframes (e.g., 2024-2025)
+- **Screening Transparency**: Detailed log with inclusion/exclusion rationale
+
+**PHASE 2: ADVANCED EVIDENCE APPRAISAL**
+- **Standardized Bias Tools**: RoB2 (RCTs), ROBINS-I (observational), AMSTAR-2 (reviews)
+- **Clinical Relevance Scoring**: 0-10 PICO alignment with explicit scoring criteria
+- **Predatory Journal Filter**: DOAJ whitelist verification and ML-based detection
+- **Quality Metrics**: Comprehensive bias assessment for all included studies
+
+**PHASE 3: META-ANALYTIC SYNTHESIS**
+- **Effect Size Pooling**: Automatic calculation when ≥2 quantitative studies available
+- **Heterogeneity Assessment**: I² statistics with exploration of variation sources
+- **Publication Bias**: Funnel plot analysis and bias assessment
+- **Subgroup Analysis**: Explore population, intervention, outcome differences
+
+**PHASE 4: ENHANCED OUTPUT GENERATION**
+- **Patient Summaries**: Flesch-Kincaid ≤ Grade 6 with cost/side effect considerations
+- **Clinical Guidance**: Patient-specific factors (age, comorbidities, combination therapies)
+- **Accessible Language**: Plain language explanations with clear communication
+
+**PHASE 5: CITATION TRANSPARENCY & ACCURACY**
+- **Formal Citations**: AMA/Vancouver style with DOI, PMID, complete bibliographic data
+- **Excluded Sources**: Transparent reporting of irrelevant/excluded materials
+- **Landmark Trial Verification**: Cross-reference mentioned trials with formal citations
+- **Reference Quality**: Peer-review verification and predatory journal exclusion
+
+**PHASE 6: CONTINUOUS LEARNING & VALIDATION**
+- **Real-Time Updates**: Monitor for new publications and trial results
+- **Expert Validation**: Cross-reference with Cochrane reviews and clinical guidelines
+- **User Feedback**: Implement feedback loops for continuous improvement
+- **Domain Adaptation**: Specialized optimization for cardiology, oncology, neurology, etc.
+
+**IMPLEMENTATION PRIORITIES:**
+1. Immediate (0-1 month): Enhanced citations, screening logs, patient summaries
+2. Short-term (1-3 months): Meta-analysis integration, enhanced data processing
+3. Long-term (3-6 months): Real-time monitoring, domain specialization
+
+This optimization ensures MedGPT Scholar delivers systematic review-quality analysis 
+across all medical domains using entirely free, publicly accessible resources.
+`;
+
+  return basePrompt + optimizationInstructions;
+}
+
+/**
+ * Generate domain-specific research queries with MeSH terms and synonyms
+ */
+export function generateOptimizedQuery(userQuery: string, medicalDomain: string): string {
+  const domainMeshTerms: Record<string, string[]> = {
+    cardiology: ['Cardiovascular Diseases', 'Heart Diseases', 'Myocardial Infarction', 'Heart Failure'],
+    oncology: ['Neoplasms', 'Carcinoma', 'Chemotherapy', 'Immunotherapy', 'Radiation Therapy'],
+    neurology: ['Nervous System Diseases', 'Brain Diseases', 'Neurodegenerative Diseases', 'Stroke'],
+    endocrinology: ['Endocrine System Diseases', 'Diabetes Mellitus', 'Thyroid Diseases', 'Hormones'],
+    pulmonology: ['Respiratory Tract Diseases', 'Lung Diseases', 'Asthma', 'COPD'],
+    gastroenterology: ['Digestive System Diseases', 'Gastrointestinal Diseases', 'Liver Diseases'],
+    nephrology: ['Kidney Diseases', 'Renal Insufficiency', 'Dialysis', 'Kidney Transplantation'],
+    rheumatology: ['Rheumatic Diseases', 'Arthritis', 'Autoimmune Diseases', 'Connective Tissue Diseases']
+  };
+
+  const meshTerms = domainMeshTerms[medicalDomain.toLowerCase()] || ['Medicine', 'Clinical Medicine'];
+  
+  return `${userQuery} AND (${meshTerms.join(' OR ')}) AND (systematic review OR meta-analysis OR randomized controlled trial OR RCT)`;
+}
+
+/**
+ * Validate citation accuracy and completeness
+ */
+export function validateCitations(response: string, mentionedTrials: string[]): {
+  isValid: boolean;
+  missingCitations: string[];
+  suggestions: string[];
+} {
+  const citationSection = response.includes('📚 Key References') || response.includes('References:');
+  const missingCitations = mentionedTrials.filter(trial => !response.includes(trial));
+  
+  return {
+    isValid: citationSection && missingCitations.length === 0,
+    missingCitations,
+    suggestions: missingCitations.map(trial => `Add formal citation for ${trial} in reference section`)
+  };
+}
+
+/**
+ * Comprehensive source quality assessment for citation training
+ */
+function assessSourceRelevanceAndQuality(paper: Citation, userQuery: string): {
+  relevanceScore: number;
+  qualityScore: number;
+  shouldCite: boolean;
+  reasoning: string;
+} {
+  const title = (paper.title || '').toLowerCase();
+  const abstract = (paper.abstract || '').toLowerCase();
+  const journal = (paper.journal || '').toLowerCase();
+  const queryLower = userQuery.toLowerCase();
+  
+  // RELEVANCE SCORING (0-100)
+  let relevanceScore = 0;
+  
+  // Population match (0-30 points)
+  const queryPopulation = extractPopulation(queryLower);
+  const studyPopulation = extractPopulation(title + ' ' + abstract);
+  if (queryPopulation && studyPopulation && queryPopulation === studyPopulation) {
+    relevanceScore += 30;
+  } else if (queryPopulation && studyPopulation && hasPopulationOverlap(queryPopulation, studyPopulation)) {
+    relevanceScore += 20;
+  } else if (!queryPopulation || !studyPopulation) {
+    relevanceScore += 10; // Neutral when population unclear
+  }
+  
+  // Intervention match (0-30 points)
+  const queryInterventions = extractInterventions(queryLower);
+  const studyInterventions = extractInterventions(title + ' ' + abstract);
+  const interventionMatch = calculateInterventionMatch(queryInterventions, studyInterventions);
+  relevanceScore += interventionMatch * 30;
+  
+  // Outcome match (0-25 points)
+  const queryOutcomes = extractOutcomes(queryLower);
+  const studyOutcomes = extractOutcomes(title + ' ' + abstract);
+  const outcomeMatch = calculateOutcomeMatch(queryOutcomes, studyOutcomes);
+  relevanceScore += outcomeMatch * 25;
+  
+  // Comparator match (0-15 points)
+  const hasQueryComparison = queryLower.includes('vs') || queryLower.includes('versus') || queryLower.includes('compared');
+  const hasStudyComparison = title.includes('vs') || title.includes('versus') || title.includes('compared') || abstract.includes('compared');
+  if (hasQueryComparison && hasStudyComparison) {
+    relevanceScore += 15;
+  } else if (hasQueryComparison && !hasStudyComparison) {
+    relevanceScore -= 10; // Penalty for missing comparison when requested
+  }
+  
+  // QUALITY SCORING (using enhanced GRADE function)
+  const gradeAssessment = getGRADEConfidence(paper);
+  let qualityScore = 0;
+  if (gradeAssessment.includes('VERY HIGH')) qualityScore = 95;
+  else if (gradeAssessment.includes('HIGH')) qualityScore = 85;
+  else if (gradeAssessment.includes('MODERATE')) qualityScore = 70;
+  else if (gradeAssessment.includes('LOW')) qualityScore = 45;
+  else qualityScore = 25;
+  
+  // DECISION LOGIC
+  const shouldCite = relevanceScore >= 70 && qualityScore >= 50;
+  
+  // REASONING
+  let reasoning = `Relevance: ${relevanceScore}/100 (`;
+  if (relevanceScore >= 80) reasoning += 'Excellent match';
+  else if (relevanceScore >= 70) reasoning += 'Good match';
+  else if (relevanceScore >= 50) reasoning += 'Moderate match';
+  else reasoning += 'Poor match';
+  reasoning += `), Quality: ${qualityScore}/100. `;
+  
+  if (shouldCite) {
+    reasoning += 'RECOMMEND CITATION - Direct relevance and sufficient quality.';
+  } else if (relevanceScore < 70) {
+    reasoning += 'EXCLUDE - Insufficient relevance to query.';
+  } else if (qualityScore < 50) {
+    reasoning += 'EXCLUDE - Insufficient evidence quality.';
+  }
+  
+  return {
+    relevanceScore,
+    qualityScore,
+    shouldCite,
+    reasoning
+  };
+}
+
+/**
+ * Extract population characteristics from text
+ */
+function extractPopulation(text: string): string | null {
+  const populations = [
+    'pediatric', 'children', 'adults', 'elderly', 'pregnant', 'postmenopausal',
+    'diabetic', 'hypertensive', 'smokers', 'athletes', 'high-risk'
+  ];
+  
+  for (const pop of populations) {
+    if (text.includes(pop)) return pop;
+  }
+  return null;
+}
+
+/**
+ * Check if populations have meaningful overlap
+ */
+function hasPopulationOverlap(pop1: string, pop2: string): boolean {
+  const overlaps: Record<string, string[]> = {
+    'elderly': ['adults'],
+    'pediatric': ['children'],
+    'postmenopausal': ['elderly', 'adults'],
+    'pregnant': ['adults']
+  };
+  
+  return overlaps[pop1]?.includes(pop2) || overlaps[pop2]?.includes(pop1) || false;
+}
+
+/**
+ * Extract medical interventions from text
+ */
+function extractInterventions(text: string): string[] {
+  const interventions = [];
+  
+  // Drug classes
+  const drugClasses = ['statin', 'ace inhibitor', 'arb', 'beta blocker', 'calcium channel', 'diuretic',
+    'sglt2', 'glp-1', 'dpp-4', 'metformin', 'insulin', 'anticoagulant', 'antiplatelet'];
+  
+  // Procedures
+  const procedures = ['pci', 'cabg', 'ablation', 'cardioversion', 'angioplasty', 'stent'];
+  
+  // Screening/diagnostic
+  const diagnostics = ['ct scan', 'mri', 'echocardiogram', 'stress test', 'calcium score'];
+  
+  const allInterventions = [...drugClasses, ...procedures, ...diagnostics];
+  
+  for (const intervention of allInterventions) {
+    if (text.includes(intervention)) {
+      interventions.push(intervention);
+    }
+  }
+  
+  return interventions;
+}
+
+/**
+ * Extract outcome measures from text
+ */
+function extractOutcomes(text: string): string[] {
+  const outcomes = [];
+  
+  const clinicalOutcomes = ['mortality', 'death', 'survival', 'myocardial infarction', 'stroke',
+    'heart failure', 'hospitalization', 'quality of life', 'symptoms', 'side effects', 'safety'];
+  
+  for (const outcome of clinicalOutcomes) {
+    if (text.includes(outcome)) {
+      outcomes.push(outcome);
+    }
+  }
+  
+  return outcomes;
+}
+
+/**
+ * Calculate intervention matching score (0-1)
+ */
+function calculateInterventionMatch(queryInterventions: string[], studyInterventions: string[]): number {
+  if (queryInterventions.length === 0 && studyInterventions.length === 0) return 0.5;
+  if (queryInterventions.length === 0 || studyInterventions.length === 0) return 0;
+  
+  const matches = queryInterventions.filter(qi => 
+    studyInterventions.some(si => si.includes(qi) || qi.includes(si))
+  );
+  
+  return matches.length / queryInterventions.length;
+}
+
+/**
+ * Calculate outcome matching score (0-1)
+ */
+function calculateOutcomeMatch(queryOutcomes: string[], studyOutcomes: string[]): number {
+  if (queryOutcomes.length === 0 && studyOutcomes.length === 0) return 0.5;
+  if (queryOutcomes.length === 0 || studyOutcomes.length === 0) return 0;
+  
+  const matches = queryOutcomes.filter(qo => 
+    studyOutcomes.some(so => so.includes(qo) || qo.includes(so))
+  );
+  
+  return matches.length / queryOutcomes.length;
+}

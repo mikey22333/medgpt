@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 
+// Extend global Window interface for custom events
+declare global {
+  interface WindowEventMap {
+    querySent: CustomEvent;
+  }
+}
+
 interface QueryLimitData {
   can_chat: boolean;
   queries_used: number;
@@ -63,8 +70,10 @@ export function useQueryLimit() {
         throw new Error('Failed to increment query count');
       }
       
-      // Refresh the limit data after incrementing
-      await checkLimit();
+      // Add a small delay before refreshing to ensure database consistency
+      setTimeout(async () => {
+        await checkLimit();
+      }, 300);
       
       return true;
     } catch (err) {
@@ -75,6 +84,19 @@ export function useQueryLimit() {
 
   useEffect(() => {
     checkLimit();
+    
+    // Listen for custom query sent events to refresh automatically
+    const handleQuerySent = () => {
+      setTimeout(() => {
+        checkLimit();
+      }, 500); // Delay to ensure database update
+    };
+    
+    window.addEventListener('querySent', handleQuerySent);
+    
+    return () => {
+      window.removeEventListener('querySent', handleQuerySent);
+    };
   }, [checkLimit]);
 
   const formatTimeUntilReset = (hours: number): string => {

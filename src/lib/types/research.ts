@@ -72,7 +72,7 @@ export interface ResearchResponse {
 
 // Unified research paper interface for all sources
 export interface ResearchPaper {
-  pmid: string;
+  pmid?: string; // Make pmid optional since not all papers have it
   title: string;
   abstract: string;
   authors: string[];
@@ -84,4 +84,11 @@ export interface ResearchPaper {
   doi?: string;
   citationCount?: number;
   isOpenAccess?: boolean;
+}
+
+// Author interface for OpenAlex
+export interface Author {
+  name: string;
+  id?: string;
+  orcid?: string;
 }

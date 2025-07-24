@@ -13,11 +13,11 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 
 interface ChatInterfaceProps {
-  mode?: 'research' | 'doctor' | 'source-finder';
+  mode?: 'research' | 'doctor';
   sessionId?: string | null;
   onSessionChange?: (sessionId: string) => void;
   hideHeader?: boolean;
-  onModeChange?: (mode: 'research' | 'doctor' | 'source-finder') => void;
+  onModeChange?: (mode: 'research' | 'doctor') => void;
   onMessageSent?: () => void; // Add callback for when message is sent
 }
 
@@ -182,6 +182,11 @@ export function ChatInterface({
     };
   }, [currentSessionId, user]); // REMOVED hasLoadedSession dependency to break the loop
 
+  // Add console logging to track mode changes
+  useEffect(() => {
+    console.log('ChatInterface mode prop changed to:', mode);
+  }, [mode]);
+
   // Save messages to localStorage as backup when they change
   useEffect(() => {
     if (currentSessionId && messages.length > 0) {
@@ -222,6 +227,8 @@ export function ChatInterface({
       const { data: { session } } = await supabase.auth.getSession();
       
       console.log('Sending message with session ID:', currentSessionId);
+      console.log('Sending message with mode:', mode);
+      console.log('Current mode state:', mode);
       
       const response = await fetch('/api/chat', {  // Back to original endpoint
         method: 'POST',
@@ -300,8 +307,13 @@ export function ChatInterface({
       // Call onMessageSent callback to refresh sidebar
       onMessageSent?.();
       
-      // Refresh query limit after successful response
-      await refreshQueryLimit();
+      // Dispatch custom event to notify query limit hook
+      window.dispatchEvent(new CustomEvent('querySent'));
+      
+      // Add a small delay to ensure database has updated before refreshing query limit
+      setTimeout(async () => {
+        await refreshQueryLimit();
+      }, 500); // 500ms delay to ensure database consistency
       
     } catch (error) {
       console.error('Error:', error);
@@ -321,7 +333,7 @@ export function ChatInterface({
     }
   };
 
-  const handleModeChange = (newMode: 'research' | 'doctor' | 'source-finder') => {
+  const handleModeChange = (newMode: 'research' | 'doctor') => {
     onModeChange?.(newMode);
   };
 
@@ -337,60 +349,24 @@ export function ChatInterface({
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Header with Mode Toggle */}
-      {!hideHeader && (
-        <div className="border-b bg-white p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white">
-                <Sparkles className="h-4 w-4" />
-              </div>
-              <div>
-                <h1 className="text-lg font-semibold">MedGPT Scholar</h1>
-                <p className="text-xs text-gray-600">
-                  {mode === 'research' ? 'Research Assistant' : 
-                   mode === 'doctor' ? 'Virtual Doctor' : 
-                   'Source Finder'}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          {/* Query Limit Display */}
-          {!limitLoading && (
-            <div className="mt-3 text-xs text-gray-500">
-              {!isProUser && (
-                <span>
-                  Queries: {queriesUsed}/{queryLimit} • 
-                  {canChat ? ' Ready to chat' : ` Reset in ${timeUntilReset}`}
-                </span>
-              )}
-              {isProUser && <span>✨ Pro User - Unlimited queries</span>}
-            </div>
-          )}
-        </div>
-      )}
+
 
       {/* Messages Area */}
       <div className="flex-1 overflow-hidden">
         <ScrollArea className="h-full" ref={scrollAreaRef}>
-          <div className="max-w-4xl mx-auto px-4 py-6 chat-container">
+          <div className="max-w-4xl mx-auto px-3 sm:px-4 py-6 chat-container">
             {messages.length === 0 && (
               <div className="text-center py-12">
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
                   <Bot className="h-8 w-8 text-blue-600" />
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                  {mode === 'research' ? 'Research Assistant' : 
-                   mode === 'doctor' ? 'Virtual Doctor' : 
-                   'Source Finder'}
+                  {mode === 'research' ? 'Research Assistant' : 'Virtual Doctor'}
                 </h2>
                 <p className="text-gray-600 max-w-md mx-auto">
                   {mode === 'research' 
                     ? "Ask me any medical question and I'll provide evidence-based answers with citations from PubMed and other sources."
-                    : mode === 'doctor'
-                    ? "I'm here to help with your medical questions with compassionate, professional guidance."
-                    : "Paste text snippets and I'll help you find their original sources and citations."
+                    : "I'm here to help with your medical questions with compassionate, professional guidance."
                   }
                 </p>
                 {!user && (
@@ -409,6 +385,7 @@ export function ChatInterface({
                   key={message.id}
                   message={message}
                   mode={mode}
+                  allMessages={messages}
                 />
               ))}
               
@@ -437,25 +414,61 @@ export function ChatInterface({
       </div>
 
       {/* Input Area */}
-      <div className="border-t bg-white p-4">
+      <div className="bg-white p-3 sm:p-6 border-t border-gray-100">
         <div className="max-w-4xl mx-auto">
           <form onSubmit={handleSubmit} className="relative">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={!user ? "Please log in to chat..." : `Ask a ${mode === 'research' ? 'research' : mode === 'doctor' ? 'medical' : 'source'} question...`}
-              disabled={isLoading || !canChat || !user}
-              className="w-full pr-12 py-3 text-sm border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent chat-content"
-            />
-            <Button 
-              type="submit" 
-              disabled={isLoading || !input.trim() || !canChat || !user}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg p-2 disabled:opacity-50"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
+            <div className="relative flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-2 sm:px-4 py-3 shadow-sm">
+              {/* Mode Selector - Integrated in input */}
+              <div className="flex items-center gap-1 sm:gap-2 mr-2 sm:mr-3 border-r border-gray-300 pr-2 sm:pr-3">
+                <Button
+                  type="button"
+                  variant={mode === 'research' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => {
+                    console.log('Research button clicked, calling onModeChange with research');
+                    onModeChange?.('research');
+                  }}
+                  className="flex items-center gap-1 h-8 px-2 sm:px-3 text-xs sm:text-sm"
+                >
+                  <Bot className="h-3 w-3" />
+                  <span className="hidden xs:inline">Research</span>
+                  <span className="xs:hidden">R</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={mode === 'doctor' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => {
+                    console.log('Doctor button clicked, calling onModeChange with doctor');
+                    onModeChange?.('doctor');
+                  }}
+                  className="flex items-center gap-1 h-8 px-2 sm:px-3 text-xs sm:text-sm"
+                >
+                  <User className="h-3 w-3" />
+                  <span className="hidden xs:inline">Doctor</span>
+                  <span className="xs:hidden">D</span>
+                </Button>
+              </div>
+              
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={!user ? "Please log in to chat..." : `Ask a ${mode === 'research' ? 'research' : 'medical'} question...`}
+                disabled={isLoading || !canChat || !user}
+                className="flex-1 bg-transparent border-0 outline-none text-sm sm:text-base placeholder-gray-500 focus:ring-0 focus:border-0 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
+              />
+              <div className="flex items-center gap-2 ml-2 sm:ml-3">
+                <Button 
+                  type="submit" 
+                  disabled={isLoading || !input.trim() || !canChat || !user}
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-2 sm:p-2.5 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </form>
-          <div className="text-xs text-gray-500 mt-2 text-center">
+          <div className="text-xs text-gray-500 mt-3 text-center">
             {!user ? (
               <span className="text-blue-600">
                 Please <a href="/auth/login" className="underline font-medium">log in</a> to start chatting

@@ -223,8 +223,8 @@ export class PubMedClient {
               articles.push({
                 id: pmcId.toString(),
                 pmid: pmcId.toString(),
-                title: title.replace(/<[^>]*>/g, '').replace(/&#\d+;/g, ''), // Remove HTML tags and entities
-                abstract: abstract.replace(/<[^>]*>/g, '').replace(/&#\d+;/g, ''), // Remove HTML tags and entities
+                title: typeof title === 'string' ? title.replace(/<[^>]*>/g, '').replace(/&#\d+;/g, '') : String(title || 'Untitled'),
+                abstract: typeof abstract === 'string' ? abstract.replace(/<[^>]*>/g, '').replace(/&#\d+;/g, '') : String(abstract || ''),
                 authors: authors.length > 0 ? authors : ['Unknown Author'],
                 journal: journal,
                 publishedDate: publishedDate,

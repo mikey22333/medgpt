@@ -6,13 +6,15 @@ import { BarChart3, PieChart, TrendingUp, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface VisualizationData {
-  type: 'pie' | 'bar' | 'flowchart' | 'pyramid';
+  type: 'pie' | 'bar' | 'flowchart' | 'pyramid' | 'forest' | 'heatmap';
   title: string;
   description: string;
   data: Array<{
     label: string;
     value: number | string;
     color?: string;
+    confidence?: string; // For forest plots
+    effectSize?: number; // For treatment comparisons
   }>;
   totalSample?: string;
   source?: string;
@@ -57,6 +59,8 @@ export function MedicalVisualization({ visualization, className }: MedicalVisual
       case 'bar': return <BarChart3 className="h-5 w-5" />;
       case 'flowchart': return <TrendingUp className="h-5 w-5" />;
       case 'pyramid': return <FileText className="h-5 w-5" />;
+      case 'forest': return <BarChart3 className="h-5 w-5" />;
+      case 'heatmap': return <TrendingUp className="h-5 w-5" />;
       default: return <BarChart3 className="h-5 w-5" />;
     }
   };
@@ -120,6 +124,110 @@ export function MedicalVisualization({ visualization, className }: MedicalVisual
     );
   };
 
+  const renderPyramidChart = () => (
+    <div className="space-y-2">
+      <div className="text-center text-xs text-gray-600 mb-3">Evidence Hierarchy (Highest Quality at Top)</div>
+      {data.map((item, index) => {
+        const numericValue = typeof item.value === 'string' ? parseFloat(item.value) : item.value;
+        const validValue = typeof numericValue === 'number' && !isNaN(numericValue) ? numericValue : 0;
+        
+        // Calculate pyramid width (inverted pyramid effect)
+        const maxWidth = 100;
+        const minWidth = 20;
+        const pyramidWidth = maxWidth - (index * ((maxWidth - minWidth) / Math.max(data.length - 1, 1)));
+        
+        return (
+          <div key={index} className="flex flex-col items-center space-y-1">
+            <div className="text-sm font-medium text-center">{item.label}</div>
+            <div 
+              className="h-8 flex items-center justify-center text-white text-xs font-bold rounded"
+              style={{ 
+                width: `${pyramidWidth}%`,
+                backgroundColor: item.color || `hsl(${120 - index * 30}, 70%, 50%)`
+              }}
+            >
+              {validValue > 0 ? `${validValue} studies` : 'No studies'}
+            </div>
+            <div className="text-xs text-gray-500">
+              {validValue > 0 ? 'Available' : 'Evidence Gap'}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderForestPlot = () => (
+    <div className="space-y-3">
+      <div className="text-center text-xs text-gray-600 mb-3">Treatment Effect Sizes with Confidence Intervals</div>
+      {data.map((item, index) => {
+        const numericValue = typeof item.value === 'string' ? parseFloat(item.value) : item.value;
+        const validValue = typeof numericValue === 'number' && !isNaN(numericValue) ? numericValue : 0;
+        const effectSize = item.effectSize || validValue;
+        
+        return (
+          <div key={index} className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="font-medium">{item.label}</span>
+              <span className="text-gray-600">
+                {effectSize.toFixed(1)}% {item.confidence ? `(${item.confidence})` : ''}
+              </span>
+            </div>
+            <div className="relative">
+              <div className="w-full bg-gray-200 rounded-full h-4">
+                <div 
+                  className="h-4 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                  style={{ 
+                    width: `${Math.min(Math.max(effectSize, 5), 100)}%`,
+                    backgroundColor: item.color || `hsl(${120 + index * 60}, 70%, 50%)`
+                  }}
+                >
+                  {effectSize > 20 ? `${effectSize.toFixed(0)}%` : ''}
+                </div>
+              </div>
+              {/* Confidence interval markers */}
+              {item.confidence && (
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>Lower CI</span>
+                  <span>Upper CI</span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderHeatmap = () => (
+    <div className="grid grid-cols-2 gap-2">
+      {data.map((item, index) => {
+        const numericValue = typeof item.value === 'string' ? parseFloat(item.value) : item.value;
+        const validValue = typeof numericValue === 'number' && !isNaN(numericValue) ? numericValue : 0;
+        
+        // Determine heat intensity based on value
+        const intensity = Math.min(validValue / 100, 1);
+        const baseColor = item.color || '#3b82f6';
+        
+        return (
+          <div 
+            key={index} 
+            className="p-3 rounded-lg border text-center"
+            style={{ 
+              backgroundColor: `${baseColor}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`,
+              borderColor: baseColor
+            }}
+          >
+            <div className="font-medium text-sm text-white">{item.label}</div>
+            <div className="text-xs text-white mt-1">
+              {typeof item.value === 'number' ? `${item.value}%` : item.value}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   const renderFlowchart = () => (
     <div className="space-y-3">
       {data.map((item, index) => (
@@ -148,7 +256,9 @@ export function MedicalVisualization({ visualization, className }: MedicalVisual
       case 'pie': return renderPieChart();
       case 'bar': return renderBarChart();
       case 'flowchart': return renderFlowchart();
-      case 'pyramid': return renderBarChart(); // Similar to bar chart but styled differently
+      case 'pyramid': return renderPyramidChart();
+      case 'forest': return renderForestPlot();
+      case 'heatmap': return renderHeatmap();
       default: return renderBarChart();
     }
   };

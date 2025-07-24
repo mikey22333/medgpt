@@ -86,10 +86,10 @@ describe('PDF Export Utils', () => {
       title: 'Test Paper',
       authors: ['Author 1', 'Author 2'],
       journal: 'Test Journal',
-      year: 2023,
+      year: '2023',
       abstract: 'This is a test abstract',
       url: 'http://example.com',
-      source: 'pubmed' as const,
+      source: 'PubMed' as const,
       relevanceScore: 0.9,
       evidenceGrade: 'A' as const
     };

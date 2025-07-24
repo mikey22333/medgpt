@@ -108,7 +108,10 @@ export class ResearchAnalystAgent implements Agent {
   }
 
   private performEvidenceSynthesis(evidence: Citation[]): string {
-    const recentStudies = evidence.filter(e => e.year >= 2022).length;
+    const recentStudies = evidence.filter(e => {
+      const year = typeof e.year === 'string' ? parseInt(e.year) : e.year;
+      return year >= 2022;
+    }).length;
     const totalStudies = evidence.length;
     
     if (recentStudies / totalStudies > 0.7) {
@@ -152,7 +155,10 @@ export class ResearchAnalystAgent implements Agent {
     const biases = [];
     
     // Publication bias detection
-    if (evidence.length > 0 && evidence.every(e => e.year >= 2020)) {
+    if (evidence.length > 0 && evidence.every(e => {
+      const year = typeof e.year === 'string' ? parseInt(e.year) : e.year;
+      return year >= 2020;
+    })) {
       biases.push("Potential recency bias - older foundational studies may be underrepresented");
     }
     
@@ -180,7 +186,10 @@ export class ResearchAnalystAgent implements Agent {
     confidence += highQuality * 10;
     
     // Recency boost
-    const recent = evidence.filter(e => e.year >= 2022).length;
+    const recent = evidence.filter(e => {
+      const year = typeof e.year === 'string' ? parseInt(e.year) : e.year;
+      return year >= 2022;
+    }).length;
     confidence += (recent / evidence.length) * 15;
     
     // Sample size consideration
@@ -400,7 +409,10 @@ export class BiasDetectionAgent implements Agent {
     }
     
     // Selection bias
-    const recentOnly = evidence.every(e => e.year >= 2020);
+    const recentOnly = evidence.every(e => {
+      const year = typeof e.year === 'string' ? parseInt(e.year) : e.year;
+      return year >= 2020;
+    });
     if (recentOnly && evidence.length > 3) {
       biases.push({
         biasType: 'selection',
@@ -721,7 +733,10 @@ export class MultiAgentReasoningSystem {
     if (evidence.length === 0) return 50;
     
     const currentYear = new Date().getFullYear();
-    const avgAge = evidence.reduce((sum, e) => sum + (currentYear - e.year), 0) / evidence.length;
+    const avgAge = evidence.reduce((sum, e) => {
+      const year = typeof e.year === 'string' ? parseInt(e.year) : e.year;
+      return sum + (currentYear - year);
+    }, 0) / evidence.length;
     
     // Convert age to score (newer = higher score)
     return Math.max(30, 100 - (avgAge * 10));

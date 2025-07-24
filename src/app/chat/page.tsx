@@ -11,13 +11,14 @@ import { ChatSidebar } from '@/components/chat/ChatSidebar';
 import { Sparkles, Settings, LogOut, Crown, ChevronDown, User, Menu } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useQueryLimit } from '@/hooks/useQueryLimit';
+import { toast } from 'sonner';
 
 export default function ChatPage() {
   const { user, loading, signOut } = useAuth();
   const { refresh: refreshQueryLimit } = useQueryLimit();
   const router = useRouter();
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
-  const [currentMode, setCurrentMode] = useState<'research' | 'doctor' | 'source-finder'>('research');
+  const [currentMode, setCurrentMode] = useState<'research' | 'doctor'>('research');
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [userPlan, setUserPlan] = useState<'free' | 'pro'>('free');
@@ -78,13 +79,13 @@ export default function ChatPage() {
     setShowSettingsDropdown(false);
   };
 
-  const handleConversationSelect = useCallback((conversationId: string, mode: 'research' | 'doctor' | 'source-finder') => {
+  const handleConversationSelect = useCallback((conversationId: string, mode: 'research' | 'doctor') => {
     setCurrentConversationId(conversationId);
     setCurrentMode(mode);
     refreshQueryLimit();
   }, [refreshQueryLimit]);
 
-  const handleNewChat = useCallback((mode?: 'research' | 'doctor' | 'source-finder') => {
+  const handleNewChat = useCallback((mode?: 'research' | 'doctor') => {
     // Clear current conversation to start fresh
     setCurrentConversationId(null);
     if (mode) {
@@ -104,11 +105,34 @@ export default function ChatPage() {
     refreshQueryLimit();
   }, [refreshQueryLimit]);
 
-  const handleModeChange = useCallback((mode: 'research' | 'doctor' | 'source-finder') => {
+  const handleModeChange = useCallback((mode: 'research' | 'doctor') => {
+    console.log('handleModeChange called with mode:', mode);
+    console.log('Current mode before change:', currentMode);
+    
+    // If there are existing messages and we're switching modes, start a new chat
+    if (currentMode !== mode && currentConversationId) {
+      // Clear current conversation to start fresh with new mode
+      setCurrentConversationId(null);
+      setRefreshTrigger(prev => prev + 1); // Trigger ChatSidebar refresh
+      
+      // Show toast notification for mode change and new chat
+      toast.success(`Started new ${mode === 'research' ? 'Research' : 'Doctor'} mode chat`, {
+        duration: 3000,
+        description: 'Previous conversation saved separately'
+      });
+    } else {
+      // Show simple mode change notification if no conversation exists
+      toast.success(`Switched to ${mode === 'research' ? 'Research' : 'Doctor'} mode`, {
+        duration: 2000,
+      });
+    }
+    
     setCurrentMode(mode);
-    // Don't reset conversation ID when changing modes - keep the same session
+    console.log('Mode updated to:', mode);
+    
+    // Don't reset conversation ID when changing modes for the first time - only when switching with existing messages
     refreshQueryLimit();
-  }, [refreshQueryLimit]);
+  }, [currentMode, currentConversationId, refreshQueryLimit, setRefreshTrigger]);
 
   if (loading) {
     return (
@@ -134,9 +158,9 @@ export default function ChatPage() {
 
   return (
     <ProtectedRoute>
-      <div className="h-screen h-[100dvh] flex bg-white overflow-hidden max-w-full">
+      <div className="h-screen h-[100dvh] flex bg-white overflow-hidden">
         {/* Desktop Sidebar - Hidden on mobile */}
-        <div className="hidden md:flex flex-col flex-shrink-0" style={{ width: '256px', maxWidth: '256px', minWidth: '256px', overflow: 'hidden' }}>
+        <div className="hidden md:flex flex-col flex-shrink-0 w-64 max-w-64 min-w-64 overflow-hidden border-r border-gray-200">
           <ChatSidebar
             currentSessionId={currentConversationId || undefined}
             currentMode={currentMode}
@@ -171,10 +195,10 @@ export default function ChatPage() {
         )}
 
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col bg-gradient-to-br from-blue-50 via-white to-indigo-50 min-w-0 max-w-full overflow-hidden">
+        <div className="flex-1 flex flex-col bg-gradient-to-br from-blue-50 via-white to-indigo-50 min-w-0 overflow-hidden">
           {/* Header */}
-          <div className="flex-shrink-0 border-b bg-white/80 backdrop-blur-sm p-3 md:p-4 relative z-50 max-w-full overflow-hidden">
-            <div className="max-w-7xl mx-auto flex items-center justify-between max-w-full min-w-0">
+          <div className="flex-shrink-0 border-b bg-white/80 backdrop-blur-sm p-3 md:p-4 relative z-10">
+            <div className="max-w-7xl mx-auto flex items-center justify-between px-2 sm:px-0">
               {/* Left side - Mobile menu button */}
               <div className="flex justify-start">
                 <Button
@@ -191,8 +215,8 @@ export default function ChatPage() {
               </div>
 
               {/* Center - Current Mode Display */}
-              <div className="flex-1 flex justify-center min-w-0">
-                <div className="text-center max-w-full">
+              <div className="flex-1 flex justify-center min-w-0 px-2">
+                <div className="text-center min-w-0">
                   <h2 className="text-sm font-medium text-gray-600 capitalize truncate">
                     {currentMode.replace('-', ' ')} Mode
                   </h2>
@@ -203,52 +227,51 @@ export default function ChatPage() {
               </div>
 
               {/* Right side - User dropdown */}
-              <div className="flex justify-end">
-                <div className="relative" ref={dropdownRef}>
-                  <Button
-                    onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-1 md:gap-2 h-9 px-2 md:px-3"
-                  >
-                    <User className="h-4 w-4" />
-                    <span className="hidden md:inline text-xs md:text-sm">{user?.email}</span>
-                    <ChevronDown className="h-3 w-3" />
-                  </Button>
-                  
-                  {showSettingsDropdown && (
-                    <div className="absolute right-0 mt-2 w-44 md:w-48 bg-white rounded-lg shadow-xl border py-2 z-[9999] max-w-[calc(100vw-2rem)] mr-2 md:mr-0 top-full">
-                      <div className="px-3 md:px-4 py-2 border-b">
-                        <p className="text-sm font-medium text-gray-900 truncate">{user?.email}</p>
-                        <p className="text-xs text-gray-500">
-                          {userPlan === 'pro' ? '💎 Pro Plan' : '🧪 Starter Plan'}
-                        </p>
+              <div className="flex justify-end">                  <div className="relative" ref={dropdownRef}>
+                    <Button
+                      onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-1 md:gap-2 h-9 px-2 md:px-3"
+                    >
+                      <User className="h-4 w-4" />
+                      <span className="hidden md:inline text-xs md:text-sm">{user?.email}</span>
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                    
+                    {showSettingsDropdown && (
+                      <div className="absolute right-0 mt-2 w-44 md:w-48 bg-white rounded-lg shadow-xl border py-2 z-50">
+                        <div className="px-3 md:px-4 py-2 border-b">
+                          <p className="text-sm font-medium text-gray-900 truncate">{user?.email}</p>
+                          <p className="text-xs text-gray-500">
+                            {userPlan === 'pro' ? '💎 Pro Plan' : '🧪 Starter Plan'}
+                          </p>
+                        </div>
+                        
+                        <button
+                          onClick={handlePricing}
+                          className="w-full px-3 md:px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        >
+                          <Crown className="h-4 w-4 text-yellow-500" />
+                          <span className="truncate">Pricing & Settings</span>
+                        </button>
+                        
+                        <button
+                          onClick={handleSignOut}
+                          className="w-full px-3 md:px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          <span className="truncate">Sign Out</span>
+                        </button>
                       </div>
-                      
-                      <button
-                        onClick={handlePricing}
-                        className="w-full px-3 md:px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                      >
-                        <Crown className="h-4 w-4 text-yellow-500" />
-                        <span className="truncate">Pricing & Settings</span>
-                      </button>
-                      
-                      <button
-                        onClick={handleSignOut}
-                        className="w-full px-3 md:px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        <span className="truncate">Sign Out</span>
-                      </button>
-                    </div>
-                  )}
+                    )}
                 </div>
               </div>
             </div>
           </div>
 
           {/* Chat Interface */}
-          <div className="flex-1 overflow-hidden max-w-full min-w-0">
+          <div className="flex-1 overflow-hidden">
             <ChatInterface 
               sessionId={currentConversationId}
               mode={currentMode}

@@ -57,14 +57,13 @@ describe('MessageBubble', () => {
     ],
     reasoningSteps: [
       {
-        step: 'literature_search',
-        description: 'Searching medical literature for diabetes information',
-        status: 'completed',
-        duration: 1500,
-        details: {
-          sources_searched: ['PubMed', 'CrossRef'],
-          papers_found: 5
-        }
+        step: 1,
+        title: 'Literature Search',
+        process: 'Searching medical literature for diabetes information',
+        evidence: ['PubMed', 'CrossRef'],
+        confidence: 85,
+        uncertainties: [],
+        criticalQuestions: []
       }
     ]
   };

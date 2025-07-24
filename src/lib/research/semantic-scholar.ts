@@ -41,7 +41,7 @@ export class SemanticScholarClient {
     const params = new URLSearchParams({
       query: query,
       limit: limit.toString(),
-      fields: "paperId,title,abstract,authors,venue,year,url,citationCount", // Removed "doi" as it's not supported
+      fields: "paperId,title,abstract,authors,venue,year,url,citationCount,doi", // Added doi back - it works for some papers
     });
 
     const headers: HeadersInit = {
@@ -52,35 +52,51 @@ export class SemanticScholarClient {
       headers["x-api-key"] = this.apiKey;
     }
 
-    const response = await fetch(
-      `${SEMANTIC_SCHOLAR_BASE_URL}/paper/search?${params}`,
-      {
-        method: "GET",
-        headers,
-      }
-    );
+    // Add retry logic for rate limiting
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const response = await fetch(
+        `${SEMANTIC_SCHOLAR_BASE_URL}/paper/search?${params}`,
+        {
+          method: "GET",
+          headers,
+        }
+      );
 
-    if (!response.ok) {
-      // Handle rate limiting and API key issues gracefully
-      if (response.status === 403 || response.status === 429) {
-        console.warn(`Semantic Scholar API limiting (${response.status}): ${response.statusText}`);
-        return []; // Return empty array instead of throwing error
+      if (!response.ok) {
+        // Handle rate limiting and API key issues gracefully
+        if (response.status === 403 || response.status === 429) {
+          if (attempt === 1) {
+            console.warn(`Semantic Scholar API limiting (${response.status}): Attempt ${attempt}, waiting 2s...`);
+            await this.delay(2000); // Wait 2 seconds before retry
+            continue;
+          } else {
+            console.warn(`Semantic Scholar API limiting (${response.status}): ${response.statusText} - returning empty results`);
+            return []; // Return empty array instead of throwing error
+          }
+        }
+        throw new Error(`Semantic Scholar search failed: ${response.statusText}`);
       }
-      throw new Error(`Semantic Scholar search failed: ${response.statusText}`);
+
+      // Success - break out of retry loop
+      const data: SemanticScholarResponse = await response.json();
+      
+      console.log(`✅ Semantic Scholar API success: ${data.data?.length || 0} results from ${data.total || 0} total`);
+      
+      return (data.data || []).map(paper => ({
+        paperId: paper.paperId,
+        title: paper.title || "No title available",
+        abstract: paper.abstract || "No abstract available", 
+        authors: paper.authors || [],
+        venue: paper.venue || "Unknown venue",
+        year: paper.year || new Date().getFullYear(),
+        doi: paper.doi,
+        url: paper.url || `https://www.semanticscholar.org/paper/${paper.paperId}`,
+        citationCount: paper.citationCount || 0,
+      }));
     }
-
-    const data: SemanticScholarResponse = await response.json();
     
-    return data.data.map(paper => ({
-      paperId: paper.paperId,
-      title: paper.title || "No title available",
-      abstract: paper.abstract || "No abstract available",
-      authors: paper.authors || [],
-      venue: paper.venue || "Unknown venue",
-      year: paper.year || new Date().getFullYear(),
-      doi: paper.doi,
-      url: paper.url || `https://www.semanticscholar.org/paper/${paper.paperId}`,
-    }));
+    // Should never reach here, but TypeScript needs this
+    return [];
   }
 
   async getPapersByIds(paperIds: string[]): Promise<SemanticScholarPaper[]> {
