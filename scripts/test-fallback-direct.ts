@@ -5,7 +5,7 @@ import { OpenRouterClient } from "@/lib/ai/openrouter";
 async function testOpenRouterDirectly() {
   try {
     // Replace with your API key
-    const openRouterApiKey = "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";
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY || "your_openrouter_api_key_here";
     const openRouter = new OpenRouterClient(openRouterApiKey);
 
     console.log("🔍 Testing OpenRouter client directly...");

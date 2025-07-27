@@ -58,7 +58,7 @@ User Request → Together AI (FAILS) → OpenRouter (FAILS) → Error Message
 ### **For Full Fallback Functionality:**
 Add to your environment variables:
 ```bash
-OPENROUTER_API_KEY=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
+OPENROUTER_API_KEY=your_openrouter_api_key_here
 OPENROUTER_MODEL=tngtech/deepseek-r1t-chimera:free
 ```
 

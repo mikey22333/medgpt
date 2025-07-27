@@ -20,7 +20,7 @@ async function testFallbackMechanism() {
     console.log("🔍 Testing fallback mechanism...");
     
     // Create a test instance with a failing primary client and real OpenRouter fallback
-    const openRouterApiKey = "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";
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY || "your_openrouter_api_key_here";
     const openRouter = new (require("@/lib/ai/openrouter").OpenRouterClient)(openRouterApiKey);
     
     const testService = new AIService(
