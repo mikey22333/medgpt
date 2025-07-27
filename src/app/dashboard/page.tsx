@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -31,7 +31,8 @@ interface UserProfile {
   subscription_status?: string;
 }
 
-export default function DashboardPage() {
+// Separate component for search params functionality
+function DashboardContent() {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -334,5 +335,23 @@ export default function DashboardPage() {
         </main>
       </div>
     </ProtectedRoute>
+  );
+}
+
+// Main component with Suspense wrapper
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <ProtectedRoute>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading dashboard...</p>
+          </div>
+        </div>
+      </ProtectedRoute>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
