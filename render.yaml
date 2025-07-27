@@ -1,0 +1,25 @@
+# Render.com deployment configuration for CliniSynth
+# https://render.com/docs/deploy-nextjs-app
+
+services:
+  - type: web
+    name: clinisynth
+    env: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    # Auto-scaling configuration
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+    # Health check configuration
+    healthCheck:
+      path: /api/health
+      intervalSeconds: 30
+      timeoutSeconds: 10
