@@ -12,17 +12,33 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     
     if (!error) {
-      const forwardedHost = request.headers.get('x-forwarded-host'); // original origin before load balancer
+      // Always use the current request origin to avoid localhost redirects
+      const forwardedHost = request.headers.get('x-forwarded-host');
+      const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
       const isLocalEnv = process.env.NODE_ENV === 'development';
       
+      let redirectUrl;
+      
       if (isLocalEnv) {
-        // we can be sure that there is no load balancer in between, so no need to watch for X-Forwarded-Host
-        return NextResponse.redirect(`${origin}${redirectedFrom}`);
+        // Development environment
+        redirectUrl = `${origin}${redirectedFrom}`;
       } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${redirectedFrom}`);
+        // Production with load balancer (Render, Vercel, etc.)
+        redirectUrl = `${forwardedProto}://${forwardedHost}${redirectedFrom}`;
       } else {
-        return NextResponse.redirect(`${origin}${redirectedFrom}`);
+        // Fallback to request origin
+        redirectUrl = `${origin}${redirectedFrom}`;
       }
+      
+      console.log('Auth callback redirect:', { 
+        origin, 
+        forwardedHost, 
+        forwardedProto, 
+        redirectedFrom, 
+        redirectUrl 
+      });
+      
+      return NextResponse.redirect(redirectUrl);
     }
   }
 

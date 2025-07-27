@@ -35,11 +35,17 @@ function LoginPageContent() {
 
     try {
       if (isSignUp) {
+        // Get the correct base URL for redirects
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        const redirectUrl = `${baseUrl}/auth/callback`;
+        
+        console.log('Signup redirect URL:', redirectUrl);
+        
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            emailRedirectTo: redirectUrl,
           },
         });
         
@@ -106,10 +112,16 @@ function LoginPageContent() {
     setError(null);
 
     try {
+      // Get the correct base URL for redirects
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const redirectUrl = `${baseUrl}/auth/callback?redirectedFrom=${encodeURIComponent(redirectedFrom)}`;
+      
+      console.log('Google OAuth redirect URL:', redirectUrl);
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirectedFrom=${encodeURIComponent(redirectedFrom)}`,
+          redirectTo: redirectUrl,
         },
       });
       
@@ -131,10 +143,16 @@ function LoginPageContent() {
     setMessage(null);
 
     try {
+      // Get the correct base URL for redirects
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const redirectUrl = `${baseUrl}/auth/callback?redirectedFrom=${encodeURIComponent(redirectedFrom)}`;
+      
+      console.log('Magic link redirect URL:', redirectUrl);
+      
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?redirectedFrom=${encodeURIComponent(redirectedFrom)}`,
+          emailRedirectTo: redirectUrl,
         },
       });
       
