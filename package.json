@@ -80,6 +80,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/node": "^20",
+    "@types/pdf-parse": "^1.1.5",
     "uuid": "^11.1.0",
     "zod": "^3.25.73"
   },
@@ -88,7 +89,6 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
     "@types/jest": "^29.5.14",
-    "@types/pdf-parse": "^1.1.5",
     "@types/uuid": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "15.3.4",
