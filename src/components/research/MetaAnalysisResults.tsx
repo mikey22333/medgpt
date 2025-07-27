@@ -237,7 +237,7 @@ export function MetaAnalysisResults({
     toast({
       title: 'Copied to clipboard',
       description: 'The summary has been copied to your clipboard.',
-    });
+    } as any);
   };
 
   const SummarySection = ({ summary }: { summary: MetaAnalysisSummary }) => {
@@ -426,7 +426,9 @@ export function MetaAnalysisResults({
                       <span className="font-medium">{outcome.name}:</span>{' '}
                       <span className="text-muted-foreground">
                         {outcome.measure.toUpperCase()} = {outcome.value.toFixed(2)} 
-                        (95% CI {outcome.ciLower.toFixed(2)}-{outcome.ciUpper.toFixed(2)})
+                        {outcome.ciLower !== undefined && outcome.ciUpper !== undefined && 
+                          `(95% CI ${outcome.ciLower.toFixed(2)}-${outcome.ciUpper.toFixed(2)})`
+                        }
                         {outcome.i2 !== undefined && `, I² = ${outcome.i2}%`}
                       </span>
                     </div>

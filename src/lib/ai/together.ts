@@ -218,12 +218,14 @@ export class TogetherAIClient {
     conversationHistory: any[] = []
   ): Promise<{ content: string; citations: any[] }> {
     try {
-      const { createSourceFinderPrompt } = await import("./prompts");
+      // Use the existing medical prompt function instead
+      const { createMedicalPrompt } = await import("./prompts");
       
-      const prompt = createSourceFinderPrompt({
-        textSnippet,
-        searchResults,
-        conversationHistory
+      const prompt = createMedicalPrompt({
+        userQuery: textSnippet,
+        researchPapers: searchResults || [],
+        conversationHistory: conversationHistory,
+        mode: 'research'
       });
 
       const messages = [

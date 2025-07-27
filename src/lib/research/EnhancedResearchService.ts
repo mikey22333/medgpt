@@ -115,12 +115,12 @@ export class EnhancedResearchService {
 
     // Unify and rank results
     const unifiedResults = this.unifyResults(
-      doajResults,
-      plosResults, 
-      bmcResults,
-      tripResults,
-      pubmedResults,
-      clinicalTrialsResults
+      doajResults as any[],
+      plosResults as any[], 
+      bmcResults as any[],
+      tripResults as any[],
+      pubmedResults as any[],
+      clinicalTrialsResults as any[]
     );
 
     // Calculate relevance scores and apply quality filters
@@ -151,11 +151,17 @@ export class EnhancedResearchService {
   async searchByDomain(query: string, domain: 'smoking_cessation' | 'cardiovascular' | 'diabetes' | 'oncology' | 'mental_health'): Promise<EnhancedSearchResult> {
     const queryStrategy = this.queryGenerator.generateDomainSpecificQuery(query, domain);
     
+    // Map domain to BMC's expected MedicalDomain type
+    const bmcDomain = domain === 'diabetes' ? 'endocrinology' : 
+                     domain === 'mental_health' ? 'psychiatry' :
+                     domain === 'smoking_cessation' ? 'cardiovascular' : // fallback
+                     domain as any; // for exact matches
+    
     // Use domain-specific searches
     const searches = await Promise.all([
       this.doajClient.searchByDomain(query, domain),
       this.plosClient.searchByDomain(query, domain),
-      this.bmcClient.searchBySpecialty(query, domain),
+      this.bmcClient.searchBySpecialty(query, bmcDomain),
       this.tripClient.searchBySpecialty(query, domain)
     ]);
 
