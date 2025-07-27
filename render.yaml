@@ -6,7 +6,7 @@ services:
     name: clinisynth
     env: node
     plan: free
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --legacy-peer-deps && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:

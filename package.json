@@ -21,7 +21,8 @@
     "type-check": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "postinstall": "npm run type-check"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -82,7 +83,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^14.3.1",
+    "@testing-library/react": "^16.0.1",
     "@types/jest": "^29.5.14",
     "@types/node": "^20",
     "@types/pdf-parse": "^1.1.5",
