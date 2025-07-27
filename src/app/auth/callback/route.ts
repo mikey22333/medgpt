@@ -4,7 +4,26 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const redirectedFrom = searchParams.get('redirectedFrom') || '/';
+  let redirectedFrom = searchParams.get('redirectedFrom') || '/chat'; // Default to /chat instead of /
+
+  // URL decode the redirectedFrom parameter if it's encoded
+  try {
+    redirectedFrom = decodeURIComponent(redirectedFrom);
+  } catch (error) {
+    console.warn('Failed to decode redirectedFrom parameter:', redirectedFrom);
+    redirectedFrom = '/chat'; // Fallback to chat page
+  }
+
+  // Ensure redirectedFrom starts with /
+  if (!redirectedFrom.startsWith('/')) {
+    redirectedFrom = '/' + redirectedFrom;
+  }
+
+  console.log('Auth callback initial params:', { 
+    code: code ? 'present' : 'missing',
+    redirectedFrom,
+    searchParams: Object.fromEntries(searchParams)
+  });
 
   if (code) {
     const supabase = await createClient();

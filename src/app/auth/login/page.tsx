@@ -21,7 +21,14 @@ function LoginPageContent() {
   
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectedFrom = searchParams.get('redirectedFrom') || '/';
+  let redirectedFrom = searchParams.get('redirectedFrom') || '/chat'; // Default to chat page
+  
+  // Ensure we have a valid redirect path
+  if (redirectedFrom === '/' || redirectedFrom === '') {
+    redirectedFrom = '/chat';
+  }
+  
+  console.log('Login page redirectedFrom:', redirectedFrom);
   
   const supabase = createClient();
 

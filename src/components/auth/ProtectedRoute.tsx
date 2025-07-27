@@ -17,7 +17,11 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push(redirectTo);
+      // Include current path in redirect so user comes back here after login
+      const currentPath = window.location.pathname;
+      const loginUrl = `${redirectTo}?redirectedFrom=${encodeURIComponent(currentPath)}`;
+      console.log('ProtectedRoute redirect:', { currentPath, loginUrl });
+      router.push(loginUrl);
     }
   }, [user, loading, router, redirectTo]);
 
