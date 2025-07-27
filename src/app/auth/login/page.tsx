@@ -112,11 +112,21 @@ function LoginPageContent() {
     setError(null);
 
     try {
-      // Get the correct base URL for redirects
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      // Get the correct base URL for redirects with fallbacks
+      let baseUrl = '';
+      if (typeof window !== 'undefined') {
+        // Primary: Use current window location origin
+        baseUrl = window.location.origin;
+        
+        // Safety check: If somehow we got localhost on production, try to fix it
+        if (baseUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+          baseUrl = `https://${window.location.hostname}`;
+        }
+      }
+      
       const redirectUrl = `${baseUrl}/auth/callback?redirectedFrom=${encodeURIComponent(redirectedFrom)}`;
       
-      console.log('Google OAuth redirect URL:', redirectUrl);
+      console.log('Google OAuth redirect URL:', { baseUrl, redirectUrl, hostname: window.location.hostname });
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',

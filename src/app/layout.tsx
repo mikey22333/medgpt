@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { RedirectGuard } from "@/components/auth/RedirectGuard";
 import Script from "next/script";
 import "./globals.css";
 
@@ -200,6 +201,7 @@ export default function RootLayout({
         className={`${inter.variable} font-sans antialiased`}
       >
         <AuthProvider>
+          <RedirectGuard />
           {children}
         </AuthProvider>
         
