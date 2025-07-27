@@ -2,9 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  experimental: {
-    serverComponentsExternalPackages: ['@supabase/supabase-js']
-  },
+  serverExternalPackages: ['@supabase/supabase-js'],
   webpack: (config, { isServer }) => {
     // Fix for module resolution issues
     config.resolve.alias = {
