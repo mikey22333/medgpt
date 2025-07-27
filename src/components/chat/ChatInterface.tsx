@@ -398,7 +398,7 @@ export function ChatInterface({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-gray-900 mb-1">
-                      MedGPT Scholar
+                      CliniSynth
                     </div>
                     <div className="flex items-center gap-1 text-gray-500">
                       <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>

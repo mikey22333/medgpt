@@ -2,13 +2,6 @@
 
 import { type Citation } from "@/lib/types/chat";
 
-interface CitationQualityFilter {
-  citation: Citation;
-  priority: number;
-  relevance: number;
-  evidenceLevel: string;
-}
-
 export class EnhancedCitationProcessor {
   // Define high-priority source types and keywords
   private static readonly HIGH_PRIORITY_SOURCES = [
@@ -277,10 +270,15 @@ export class EnhancedCitationProcessor {
     }
 
     // Recent publications get boost (2020+ guidelines era)
-    if (citation.year && citation.year >= 2020) {
-      score += 20;
-    } else if (citation.year && citation.year >= 2015) {
-      score += 10;
+    if (citation.year) {
+      const yearNum = parseInt(citation.year, 10);
+      if (!isNaN(yearNum)) {
+        if (yearNum >= 2020) {
+          score += 20;
+        } else if (yearNum >= 2015) {
+          score += 10;
+        }
+      }
     }
 
     // Impact factor estimation based on journal name

@@ -11,7 +11,7 @@ export default function SecurityPage() {
           <h1 className="text-4xl font-bold">Security</h1>
           <p className="text-lg text-slate-600">
             Keeping your data secure is our highest priority. Below is an
-            overview of how MedGPT Scholar protects your information.
+            overview of how CliniSynth protects your information.
           </p>
         </header>
 
@@ -61,7 +61,7 @@ export default function SecurityPage() {
             <Cloud className="w-5 h-5" /> Cloud Infrastructure
           </h2>
           <p>
-            MedGPT Scholar is hosted on trusted cloud providers with network
+            CliniSynth is hosted on trusted cloud providers with network
             segmentation, firewalls, and continuous monitoring in place.
           </p>
         </section>
@@ -71,7 +71,7 @@ export default function SecurityPage() {
             <ShieldCheck className="w-5 h-5" /> Responsible Disclosure
           </h2>
           <p>
-            Found a vulnerability? Please email <a href="mailto:security@medgpt.ai" className="text-primary hover:underline">security@medgpt.ai</a> and
+            Found a vulnerability? Please email <a href="mailto:security@clinisynth.com" className="text-primary hover:underline">security@clinisynth.com</a> and
             our team will investigate promptly.
           </p>
         </section>

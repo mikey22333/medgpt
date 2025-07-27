@@ -10,7 +10,7 @@ export interface ExportData {
 }
 
 export class ExportUtils {
-  static async exportToPDF(data: ExportData, title: string = "MedGPT Scholar Export"): Promise<void> {
+  static async exportToPDF(data: ExportData, title: string = "CliniSynth Export"): Promise<void> {
     try {
       const pdf = new jsPDF();
       const pageWidth = pdf.internal.pageSize.width;
@@ -172,7 +172,7 @@ export class ExportUtils {
       }
 
       // Save the PDF
-      const filename = `medgpt-scholar-${Date.now()}.pdf`;
+      const filename = `clinisynth-${Date.now()}.pdf`;
       pdf.save(filename);
     } catch (error) {
       console.error("Error exporting to PDF:", error);
@@ -181,7 +181,7 @@ export class ExportUtils {
   }
 
   static exportToText(data: ExportData): string {
-    let text = "MedGPT Scholar Export\n";
+    let text = "CliniSynth Export\n";
     text += "=".repeat(50) + "\n\n";
     
     const timestamp = data.timestamp || new Date();
@@ -231,7 +231,7 @@ export class ExportUtils {
     return text;
   }
 
-  static downloadTextFile(content: string, filename: string = `medgpt-scholar-${Date.now()}.txt`): void {
+  static downloadTextFile(content: string, filename: string = `clinisynth-${Date.now()}.txt`): void {
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

@@ -79,7 +79,7 @@ export class OpenAlexClient {
   private getHeaders(): HeadersInit {
     const headers: HeadersInit = {
       'Accept': 'application/json',
-      'User-Agent': `MedGPTScholar (mailto:${this.email})`
+      'User-Agent': `CliniSynth (mailto:${this.email})`
     };
 
     if (this.apiKey) {
@@ -145,33 +145,16 @@ export class OpenAlexClient {
         id,
         title,
         abstract,
-        authors,
+        authors: authors.map(author => author.name), // Convert to string array
         journal,
-        year,
+        year: year.toString(), // Convert to string
         url,
         source: 'OpenAlex',
         pdfUrl: work.primary_location?.pdf_url,
         citationCount: work.cited_by_count,
         isOpenAccess: work.primary_location?.is_oa || false,
-        volume: work.biblio?.volume,
-        issue: work.biblio?.issue,
-        pages: work.biblio?.first_page ? 
-          (work.biblio.last_page ? 
-            `${work.biblio.first_page}-${work.biblio.last_page}` : 
-            work.biblio.first_page) : 
-          undefined,
-        concepts: work.concepts?.map(c => ({
-          id: c.id,
-          name: c.display_name,
-          wikidata: c.wikidata,
-          level: c.level,
-          score: c.score
-        })),
-        referencedWorks: work.referenced_works?.map(ref => ref.replace('https://openalex.org/', '')),
-        relatedWorks: work.related_works?.map(ref => ref.replace('https://openalex.org/', ''))
+        doi: doi
       };
-      
-      if (doi) paper.doi = doi;
       
       return paper;
     });

@@ -328,8 +328,7 @@ export class QueryRefinementService {
       abstract: ref.abstract,
       authors: ref.authors,
       journal: ref.journal,
-      year: ref.year,
-      publishedDate: new Date(ref.year, 0, 1).toISOString(),
+      year: ref.year.toString(),
       url: `https://pubmed.ncbi.nlm.nih.gov/${ref.pmid}/`,
     }));
   }

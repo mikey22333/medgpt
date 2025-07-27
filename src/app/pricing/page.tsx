@@ -3,44 +3,48 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, Brain, ArrowLeft, Sparkles, Search, TrendingUp, Award, FileText, Clock, Shield } from "lucide-react";
+import { Check, X, ArrowLeft, Sparkles, Search, TrendingUp, Award, FileText, Clock, Shield } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 const plans = [
   {
-    name: "Starter Plan",
+    name: "🆓 Free Plan",
     price: "Free",
-    description: "Perfect for trying out MedGPT Scholar",
-    highlight: "Get started with essential medical research tools",
+    description: "Ideal for basic use and trial experience",
+    highlight: "For Everyone",
     features: [
-      { name: "3 queries per day", included: true, description: "Ask 3 medical research questions daily" },
-      { name: "Basic GRADE assessment", included: true, description: "Evidence quality scoring for research papers" },
-      { name: "PubMed & CrossRef search", included: true, description: "Access to major medical databases" },
-      { name: "PDF export (limited)", included: true, description: "Export up to 2 reports per day" },
-      { name: "Standard summarization", included: true, description: "AI-powered research summaries" },
+      { name: "3 total queries/day", included: true, description: "Doctor + Research combined daily limit" },
+      { name: "Doctor Mode", included: true, description: "Clinical consultation-style responses" },
+      { name: "Research Mode", included: true, description: "Academic research and evidence synthesis" },
+      { name: "Structured clinical summaries", included: true, description: "Professional medical summaries" },
+      { name: "Visual data outputs", included: true, description: "Pie charts, bar graphs, etc." },
+      { name: "10 citations per query", included: true, description: "Comprehensive research citations" },
+      { name: "PDF export", included: false, description: "Not available on free plan" },
     ],
     cta: "Get Started Free",
     popular: false,
     className: "bg-slate-50 border-slate-200"
   },
   {
-    name: "Pro Plan",
-    price: "$19",
+    name: "⚡ Pro Plan",
+    price: "$12",
     period: "/month",
-    originalPrice: "$29",
-    description: "For serious medical professionals and researchers",
-    highlight: "Everything you need for comprehensive medical research",
+    description: "Great for medical students, researchers, and clinicians",
+    highlight: "For Power Users",
     features: [
-      { name: "Unlimited queries", included: true, description: "No daily limits on research questions" },
-      { name: "Advanced GRADE analysis", included: true, description: "Complete evidence assessment framework" },
-      { name: "Multi-database search", included: true, description: "PubMed, CrossRef, EuropePMC, OpenAlex" },
-      { name: "Unlimited PDF export", included: true, description: "Generate unlimited professional reports" },
-      { name: "Upgraded AI model", included: true, description: "Enhanced AI with better accuracy and understanding" }
+      { name: "15 queries/day", included: true, description: "Higher daily limit for professional use" },
+      { name: "Everything in Free", included: true, description: "All core features included" },
+      { name: "PDF export of research", included: true, description: "Download professional reports" },
+      { name: "Citation visual summaries", included: true, description: "Max 20 citations displayed per query" },
+      { name: "Visual citation analysis", included: true, description: "View as pie chart or tag clusters" },
+      { name: "Faster AI response", included: true, description: "Processing priority for Pro users" },
+      { name: "Early access to new features", included: true, description: "Be the first to try new capabilities" }
     ],
     cta: "Upgrade to Pro",
     popular: true,
-    className: "medical-gradient text-white border-2 border-blue-400"
+    className: "bg-blue-600 text-white border-2 border-blue-500"
   }
 ];
 
@@ -104,7 +108,7 @@ export default function PricingPage() {
   const router = useRouter();
 
   const handleGetStarted = (planName: string) => {
-    if (planName === "Starter Plan") {
+    if (planName === "🆓 Free Plan") {
       router.push('/auth/login?redirectedFrom=/chat');
     } else {
       router.push('/auth/login?redirectedFrom=/dashboard');
@@ -122,10 +126,8 @@ export default function PricingPage() {
               <span className="text-slate-600 hover:text-slate-900">Back to Home</span>
             </Link>
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 medical-gradient rounded-lg flex items-center justify-center">
-                <Brain className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-xl font-bold text-slate-900">MedGPT Scholar</span>
+              <Logo />
+              <span className="text-xl font-bold text-slate-900">CliniSynth</span>
             </div>
           </div>
         </div>
@@ -165,7 +167,7 @@ export default function PricingPage() {
               <div key={index} className="relative">
                 <Card className={`${plan.className} rounded-2xl p-8 relative overflow-hidden ${plan.popular ? 'ring-2 ring-blue-400 shadow-2xl' : 'shadow-lg'}`}>
                   {plan.popular && (
-                    <Badge className="absolute top-6 right-6 bg-white/20 text-white border-white/30 px-3 py-1">
+                    <Badge className="absolute top-6 right-6 bg-yellow-500 text-white border-yellow-400 px-3 py-1">
                       <Sparkles className="w-3 h-3 mr-1" />
                       Most Popular
                     </Badge>
@@ -178,17 +180,12 @@ export default function PricingPage() {
                     <div className={`flex items-baseline mb-2 ${plan.popular ? 'text-white' : 'text-slate-900'}`}>
                       <span className="text-5xl font-bold">{plan.price}</span>
                       {plan.period && (
-                        <span className={`text-lg font-normal ml-1 ${plan.popular ? 'text-blue-100' : 'text-slate-600'}`}>
+                        <span className={`text-lg font-normal ml-1 ${plan.popular ? 'text-white' : 'text-slate-600'}`}>
                           {plan.period}
                         </span>
                       )}
-                      {plan.originalPrice && (
-                        <span className="text-lg text-blue-200 line-through ml-2">
-                          {plan.originalPrice}
-                        </span>
-                      )}
                     </div>
-                    <p className={`${plan.popular ? 'text-blue-100' : 'text-slate-600'} mb-3`}>
+                    <p className={`${plan.popular ? 'text-white' : 'text-slate-600'} mb-3`}>
                       {plan.description}
                     </p>
                     <p className={`text-sm font-medium ${plan.popular ? 'text-white' : 'text-slate-700'}`}>
@@ -200,22 +197,22 @@ export default function PricingPage() {
                     {plan.features.map((feature, featureIndex) => (
                       <li key={featureIndex} className="flex items-start space-x-3">
                         {feature.included ? (
-                          <Check className={`mt-1 w-4 h-4 flex-shrink-0 ${plan.popular ? 'text-green-300' : 'text-green-500'}`} />
+                          <Check className={`mt-1 w-4 h-4 flex-shrink-0 ${plan.popular ? 'text-white' : 'text-green-500'}`} />
                         ) : (
-                          <X className={`mt-1 w-4 h-4 flex-shrink-0 ${plan.popular ? 'text-blue-200' : 'text-slate-400'}`} />
+                          <X className={`mt-1 w-4 h-4 flex-shrink-0 ${plan.popular ? 'text-white/50' : 'text-slate-400'}`} />
                         )}
                         <div>
                           <span className={`font-medium ${
                             feature.included 
                               ? (plan.popular ? 'text-white' : 'text-slate-700')
-                              : (plan.popular ? 'text-blue-200' : 'text-slate-400')
+                              : (plan.popular ? 'text-white/60' : 'text-slate-400')
                           }`}>
                             {feature.name}
                           </span>
                           <p className={`text-sm ${
                             feature.included 
-                              ? (plan.popular ? 'text-blue-100' : 'text-slate-500')
-                              : (plan.popular ? 'text-blue-200' : 'text-slate-400')
+                              ? (plan.popular ? 'text-white/90' : 'text-slate-500')
+                              : (plan.popular ? 'text-white/50' : 'text-slate-400')
                           }`}>
                             {feature.description}
                           </p>
@@ -246,7 +243,7 @@ export default function PricingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
-              What You Get With MedGPT Scholar
+              What You Get With CliniSynth
             </h2>
             <p className="text-xl text-slate-600 max-w-3xl mx-auto">
               Powerful features designed specifically for medical professionals and researchers.
@@ -279,7 +276,7 @@ export default function PricingPage() {
               Frequently Asked Questions
             </h2>
             <p className="text-xl text-slate-600">
-              Everything you need to know about MedGPT Scholar.
+              Everything you need to know about CliniSynth.
             </p>
           </div>
 
@@ -304,14 +301,14 @@ export default function PricingPage() {
           <h2 className="text-3xl md:text-4xl font-bold mb-4">
             Ready to Transform Your Medical Research?
           </h2>
-          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
             Join thousands of medical professionals who are already using AI to accelerate their research and improve patient outcomes.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
             <Button 
               size="lg" 
               className="bg-white text-primary px-8 py-4 text-lg font-semibold hover:bg-blue-50"
-              onClick={() => handleGetStarted("Starter Plan")}
+              onClick={() => handleGetStarted("🆓 Free Plan")}
             >
               Start Free Trial
             </Button>

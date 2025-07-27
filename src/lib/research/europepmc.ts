@@ -145,18 +145,32 @@ interface EuropePMCSearchResponse {
       title: string;
       abstractText?: string;
       authorString?: string;
+      authorList?: {
+        author: Array<{
+          fullName?: string;
+          lastName?: string;
+          firstName?: string;
+        }>;
+      };
       journalTitle?: string;
       pubYear?: string;
       pubType?: string;
       isOpenAccess?: string;
       citedByCount?: number;
+      firstPublicationDate?: string;
+      pubYearList?: {
+        year: string[];
+      };
       fullTextUrlList?: {
         fullTextUrl: Array<{
           url: string;
           documentStyle: string;
           site: string;
+          availability?: string;
         }>;
       };
+      source?: string;
+      [key: string]: any; // Allow for additional properties
     }>;
   };
 }
@@ -195,7 +209,7 @@ export class EuropePMCClient {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'MedGPT-Scholar/1.0 (Medical Research Assistant)'
+          'User-Agent': 'CliniSynth/1.0 (Medical Research Assistant)'
         }
       });
       
@@ -277,7 +291,7 @@ export class EuropePMCClient {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'MedGPT-Scholar/1.0 (Medical Research Assistant)'
+          'User-Agent': 'CliniSynth/1.0 (Medical Research Assistant)'
         }
       });
 
@@ -369,9 +383,9 @@ export class EuropePMCClient {
       const baseArticle = this.convertToArticle(result);
 
       // Add meta-analysis specific fields based on the article content
-      const pubTypes = Array.isArray(result.pubTypeList?.pubType) 
-        ? result.pubTypeList.pubType 
-        : [result.pubTypeList?.pubType].filter(Boolean);
+      const pubTypes = Array.isArray((result as any).pubTypeList?.pubType) 
+        ? (result as any).pubTypeList.pubType 
+        : [(result as any).pubTypeList?.pubType].filter(Boolean);
         
       const isMetaAnalysis = pubTypes.some(
         (type: any) => type?.toLowerCase().includes('meta-analysis') || 
@@ -379,7 +393,7 @@ export class EuropePMCClient {
       ) || false;
       
       // Extract methods section if available
-      const methods = result.sections?.section?.find(
+      const methods = (result as any).sections?.section?.find(
         (s: any) => s.heading?.toLowerCase() === 'methods'
       )?.text;
       
@@ -388,7 +402,7 @@ export class EuropePMCClient {
       if (includeFullText && result.fullTextUrlList?.fullTextUrl?.length) {
         try {
           const fullTextUrl = result.fullTextUrlList.fullTextUrl.find(
-            (url: any) => url.documentStyle === 'fulltext' && url.availability === 'Y'
+            (url: any) => url.documentStyle === 'fulltext' && (url.availability === 'Y' || !url.availability)
           )?.url;
           
           if (fullTextUrl) {

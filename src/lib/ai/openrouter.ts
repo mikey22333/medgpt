@@ -62,8 +62,8 @@ export class OpenRouterClient {
         headers: {
           "Authorization": `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://medgpt-scholar.vercel.app",
-          "X-Title": "MedGPT Scholar",
+          "HTTP-Referer": "https://clinisynth.vercel.app",
+          "X-Title": "CliniSynth",
         },
         body: JSON.stringify(requestData),
       });
@@ -109,8 +109,8 @@ export class OpenRouterClient {
         headers: {
           "Authorization": `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://medgpt-scholar.vercel.app",
-          "X-Title": "MedGPT Scholar",
+          "HTTP-Referer": "https://clinisynth.vercel.app",
+          "X-Title": "CliniSynth",
         },
         body: JSON.stringify(requestData),
       });

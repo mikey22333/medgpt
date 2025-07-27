@@ -10,15 +10,11 @@ import {
   Sparkles, 
   FileText, 
   Stethoscope, 
-  BookOpen, 
-  Database,
-  Filter,
   BarChart3,
-  Shield,
-  Download
+  Shield
 } from "lucide-react";
 
-const medgptModes = [
+const clinisynthModes = [
   {
     mode: "Research Mode",
     description: "Comprehensive research assistance for academic and clinical investigations",
@@ -29,12 +25,12 @@ const medgptModes = [
       {
         icon: Search,
         title: "Advanced Literature Search",
-        description: "Unified search across PubMed, CrossRef, EuropePMC, and OpenAlex with semantic understanding"
+        description: "Unified search across PubMed, CrossRef, and Europe PMC with semantic understanding"
       },
       {
         icon: TrendingUp,
-        title: "Meta-Analysis & Effect Sizes",
-        description: "Automated statistical analysis with I² statistics and confidence intervals"
+        title: "10-Citation Guarantee",
+        description: "Always returns exactly 10 relevant citations with progressive fallback system"
       },
       {
         icon: Award,
@@ -44,7 +40,7 @@ const medgptModes = [
       {
         icon: FileText,
         title: "Research Report Export",
-        description: "Publication-ready PDF reports with proper citations and methodology"
+        description: "Publication-ready PDF reports with proper citations and methodology (Pro Plan)"
       }
     ]
   },
@@ -62,47 +58,18 @@ const medgptModes = [
       },
       {
         icon: Sparkles,
-        title: "Diagnostic Assistance",
-        description: "Differential diagnosis suggestions based on symptoms and latest research"
+        title: "Temperature Validation",
+        description: "Automatic detection and correction of unrealistic fever values for patient safety"
       },
       {
         icon: Shield,
-        title: "Safety Alerts & Contraindications",
-        description: "Real-time FDA alerts, drug interactions, and safety considerations"
+        title: "Medical Disclaimers",
+        description: "Automatic inclusion of medical disclaimers and emergency guidance"
       },
       {
         icon: BarChart3,
-        title: "Patient Outcome Predictions",
-        description: "Evidence-based prognosis and treatment success probability estimates"
-      }
-    ]
-  },
-  {
-    mode: "Source-Finder Mode",
-    description: "Quick access to specific studies and research papers",
-    badge: "Fast Access",
-    badgeColor: "bg-purple-500",
-    gradient: "from-purple-50 to-white border-purple-200",
-    features: [
-      {
-        icon: Database,
-        title: "Multi-Database Search",
-        description: "Instant access to millions of papers across all major medical databases"
-      },
-      {
-        icon: Filter,
-        title: "Smart Filtering",
-        description: "Advanced filters by study type, publication date, impact factor, and relevance"
-      },
-      {
-        icon: BookOpen,
-        title: "Full-Text Access",
-        description: "Direct links to open access papers and institutional access integration"
-      },
-      {
-        icon: Download,
-        title: "Citation Management",
-        description: "Export citations in APA, MLA, Vancouver, and other academic formats"
+        title: "Structured Clinical Summaries",
+        description: "Professional medical summaries with visual data outputs (charts, graphs)"
       }
     ]
   }
@@ -119,16 +86,16 @@ export default function Features() {
           className="text-center mb-16"
         >
           <h2 className="text-4xl md:text-5xl font-bold text-slate-900 mb-4">
-            Three Powerful Modes for Every Medical Need
+            Two Powerful Modes for Every Medical Need
           </h2>
           <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-            MedGPT Scholar adapts to your workflow with specialized modes for research, clinical practice, and literature discovery.
+            CliniSynth adapts to your workflow with specialized modes for research and clinical practice.
           </p>
         </motion.div>
 
-        {/* Three-column mode comparison */}
-        <div className="grid lg:grid-cols-3 gap-8 mb-16">
-          {medgptModes.map((mode, modeIndex) => (
+        {/* Two-column mode comparison */}
+        <div className="grid lg:grid-cols-2 gap-8 mb-16 max-w-5xl mx-auto">
+          {clinisynthModes.map((mode, modeIndex) => (
             <motion.div
               key={modeIndex}
               initial={{ opacity: 0, y: 20 }}
@@ -203,7 +170,7 @@ export default function Features() {
               Ready to revolutionize your medical research?
             </h3>
             <p className="text-slate-600 mb-6 max-w-2xl mx-auto">
-              Join thousands of medical professionals using MedGPT Scholar to make faster, more informed decisions.
+              Join thousands of medical professionals using CliniSynth to make faster, more informed decisions.
             </p>
             <a
               href="/auth/login?redirectedFrom=/chat"

@@ -102,7 +102,7 @@ export function usePDFExport() {
         .substring(0, 50);
 
       const timestamp = new Date().toISOString().split('T')[0];
-      downloadPDF(pdfBlob, `medgpt-${mode}-${safeTitle}-${timestamp}.pdf`);
+      downloadPDF(pdfBlob, `clinisynth-${mode}-${safeTitle}-${timestamp}.pdf`);
       return true;
     } catch (err) {
       console.error('Failed to generate PDF:', err);

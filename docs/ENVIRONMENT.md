@@ -1,6 +1,6 @@
 # Environment Variables
 
-This document outlines the required and optional environment variables for the MedGPT Scholar application.
+This document outlines the required and optional environment variables for the CliniSynth application.
 
 ## Required Variables
 

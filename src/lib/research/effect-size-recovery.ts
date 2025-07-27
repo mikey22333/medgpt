@@ -33,15 +33,15 @@ export class EffectSizeRecovery {
       const query = `"${intervention}" AND "${outcome}" AND ("meta-analysis" OR "systematic review")`;
       
       // Search for relevant meta-analyses
-      const results = await this.europePMC.searchMetaAnalyses(query, {
+      const searchResults = await this.europePMC.searchMetaAnalyses(query, {
         minStudies: 3, // Require at least 3 studies for reliability
         minYear: new Date().getFullYear() - 10, // Last 10 years
         sortBy: 'cited' // Most cited first
       });
 
       // Look for the most relevant result with effect sizes
-      const relevantResult = results.find(result => 
-        result.outcomeMeasures?.some(om => 
+      const relevantResult = searchResults.results.find((result: EuropePMCMetaAnalysis) => 
+        result.outcomeMeasures?.some((om: any) => 
           om.name.toLowerCase().includes(outcome.toLowerCase()) &&
           om.value !== undefined
         )
@@ -49,7 +49,7 @@ export class EffectSizeRecovery {
 
       if (relevantResult) {
         // Find the most relevant outcome measure
-        const outcomeMeasure = relevantResult.outcomeMeasures?.find(om => 
+        const outcomeMeasure = relevantResult.outcomeMeasures?.find((om: any) => 
           om.name.toLowerCase().includes(outcome.toLowerCase())
         );
 

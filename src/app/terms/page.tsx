@@ -1,7 +1,7 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { Brain } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 import Link from "next/link";
 
 export default function TermsOfService() {
@@ -12,10 +12,8 @@ export default function TermsOfService() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 medical-gradient rounded-lg flex items-center justify-center">
-                <Brain className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-xl font-bold text-slate-900">MedGPT Scholar</span>
+              <Logo />
+              <span className="text-xl font-bold text-slate-900">CliniSynth</span>
             </Link>
             <Link 
               href="/" 
@@ -40,7 +38,7 @@ export default function TermsOfService() {
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">1. Acceptance of Terms</h2>
             <p className="text-slate-700 leading-relaxed">
-              By accessing and using MedGPT Scholar ("Service"), you accept and agree to be bound by the terms and provision of this agreement. MedGPT Scholar is an AI-powered medical research assistant designed for healthcare professionals and researchers.
+              By accessing and using CliniSynth ("Service"), you accept and agree to be bound by the terms and provision of this agreement. CliniSynth is an AI-powered medical research assistant designed for healthcare professionals and researchers.
             </p>
           </section>
 
@@ -53,7 +51,7 @@ export default function TermsOfService() {
             </div>
             <div className="space-y-3 text-slate-700">
               <p>
-                <strong>Not Medical Advice:</strong> MedGPT Scholar provides research assistance and information synthesis tools. It does NOT provide medical advice, diagnosis, or treatment recommendations.
+                <strong>Not Medical Advice:</strong> CliniSynth provides research assistance and information synthesis tools. It does NOT provide medical advice, diagnosis, or treatment recommendations.
               </p>
               <p>
                 <strong>Professional Judgment Required:</strong> All information provided must be independently verified and interpreted by qualified healthcare professionals. Clinical decisions should never be based solely on AI-generated content.
@@ -120,7 +118,7 @@ export default function TermsOfService() {
           <section>
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">7. Intellectual Property</h2>
             <div className="space-y-3 text-slate-700">
-              <p><strong>Service Content:</strong> The MedGPT Scholar platform, including software, algorithms, and user interface, is our proprietary property.</p>
+              <p><strong>Service Content:</strong> The CliniSynth platform, including software, algorithms, and user interface, is our proprietary property.</p>
               <p><strong>User Content:</strong> You retain ownership of your research queries and any content you create using our service.</p>
               <p><strong>Research Data:</strong> We aggregate publicly available research from databases like PubMed, CrossRef, and others under fair use principles.</p>
             </div>
@@ -164,9 +162,9 @@ export default function TermsOfService() {
             <div className="space-y-3 text-slate-700">
               <p>For questions about these terms, contact us at:</p>
               <div className="bg-slate-50 rounded-lg p-4">
-                <p><strong>Email:</strong> legal@medgptscholar.com</p>
+                <p><strong>Email:</strong> legal@clinisynth.com</p>
                 <p><strong>Address:</strong> [Your Company Address]</p>
-                <p><strong>Support:</strong> support@medgptscholar.com</p>
+                <p><strong>Support:</strong> support@clinisynth.com</p>
               </div>
             </div>
           </section>
@@ -177,7 +175,7 @@ export default function TermsOfService() {
             href="/" 
             className="inline-flex items-center px-6 py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 transition-colors"
           >
-            Return to MedGPT Scholar
+            Return to CliniSynth
           </Link>
         </div>
       </main>

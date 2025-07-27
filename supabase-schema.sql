@@ -58,6 +58,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS public.user_profiles (
     id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
     full_name TEXT,
+    email VARCHAR(255),
     profession VARCHAR(100),
     organization VARCHAR(255),
     query_limit INTEGER DEFAULT 3,
@@ -74,6 +75,17 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
 -- Add last_reset_date column if it doesn't exist (for existing installations)
 ALTER TABLE public.user_profiles 
 ADD COLUMN IF NOT EXISTS last_reset_date DATE DEFAULT CURRENT_DATE;
+
+-- Add email column if it doesn't exist (for existing installations)
+ALTER TABLE public.user_profiles 
+ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+
+-- Populate email field for existing users from auth.users table
+UPDATE public.user_profiles 
+SET email = auth.users.email
+FROM auth.users 
+WHERE public.user_profiles.id = auth.users.id 
+AND public.user_profiles.email IS NULL;
 
 -- Update existing free users to have the new query limit of 3
 UPDATE public.user_profiles 
@@ -118,8 +130,8 @@ END $$;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-    INSERT INTO public.user_profiles (id, full_name)
-    VALUES (new.id, new.raw_user_meta_data->>'full_name');
+    INSERT INTO public.user_profiles (id, full_name, email)
+    VALUES (new.id, new.raw_user_meta_data->>'full_name', new.email);
     RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -160,9 +172,11 @@ DECLARE
 BEGIN
     -- First check if profile exists
     IF NOT EXISTS (SELECT 1 FROM public.user_profiles WHERE id = user_uuid) THEN
-        -- Create profile if it doesn't exist
-        INSERT INTO public.user_profiles (id, query_limit, queries_used, last_reset_date, subscription_tier)
-        VALUES (user_uuid, 3, 0, CURRENT_DATE, 'free');
+        -- Create profile if it doesn't exist, including email from auth.users
+        INSERT INTO public.user_profiles (id, email, query_limit, queries_used, last_reset_date, subscription_tier)
+        SELECT user_uuid, auth.users.email, 3, 0, CURRENT_DATE, 'free'
+        FROM auth.users 
+        WHERE auth.users.id = user_uuid;
     END IF;
     
     SELECT 

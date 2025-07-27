@@ -39,6 +39,10 @@ export interface Citation {
   meshTerms?: string[];
   isGuideline?: boolean;
   guidelineOrg?: 'WHO' | 'NICE' | 'FDA' | 'AAP' | 'AHA' | 'ESC' | 'CDC' | 'Other';
+  // New relevance assessment fields
+  relevanceScore?: number; // 0-1 based on semantic similarity and query match
+  relevanceCategory?: 'Highly Relevant' | 'Moderately Relevant' | 'Weakly Relevant' | 'Poorly Relevant' | 'Off-topic';
+  relevanceWarning?: string; // Warning message for off-topic or weakly relevant papers
 }
 
 export interface ChatState {

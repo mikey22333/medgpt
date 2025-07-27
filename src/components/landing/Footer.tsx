@@ -1,7 +1,7 @@
 "use client";
 
-import { Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/ui/Logo";
 import { useRouter } from "next/navigation";
 
 export default function Footer() {
@@ -26,7 +26,7 @@ export default function Footer() {
           <h2 className="text-4xl md:text-5xl font-bold mb-4">
             Join Thousands of Clinicians Using AI to Stay Ahead
           </h2>
-          <p className="text-xl text-blue-100 mb-8 max-w-3xl mx-auto">
+          <p className="text-xl text-white/90 mb-8 max-w-3xl mx-auto">
             Transform your research workflow and make better clinical decisions with evidence at your fingertips.
           </p>
           
@@ -63,10 +63,8 @@ export default function Footer() {
             {/* Brand */}
             <div>
               <div className="flex items-center space-x-2 mb-4">
-                <div className="w-8 h-8 medical-gradient rounded-lg flex items-center justify-center">
-                  <Brain className="w-4 h-4 text-white" />
-                </div>
-                <span className="text-xl font-bold text-white">MedGPT Scholar</span>
+                <Logo />
+                <span className="text-xl font-bold text-white">CliniSynth</span>
               </div>
               <p className="text-slate-400 text-sm mb-4">
                 AI-powered medical research, simplified for healthcare professionals.
@@ -139,7 +137,7 @@ export default function Footer() {
           </div>
 
           <div className="border-t border-slate-800 mt-12 pt-8 text-center">
-            <p className="text-slate-400 text-sm">© 2025 MedGPT Scholar. All rights reserved.</p>
+            <p className="text-slate-400 text-sm">© 2025 CliniSynth. All rights reserved.</p>
           </div>
         </div>
       </footer>

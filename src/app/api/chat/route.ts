@@ -193,12 +193,31 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             query: userMessage,
             maxResults: 10, // Request 10 citations for comprehensive research
-            includeAbstracts: true
+            includeAbstracts: true,
+            isLegacyChatCall: true // 🔧 FIX: Ensure we get the legacy format with 'papers' field
           })
         });
 
+        console.log("🔧 CITATION FIX: Calling Research API with isLegacyChatCall=true to ensure 10 citations");
+
         if (researchResponse.ok) {
           const researchData = await researchResponse.json();
+          
+          // 🚨 CRITICAL DEBUG: Diagnose the 4 vs 10 citation discrepancy
+          console.log("🔍 RESEARCH API RESPONSE DEBUGGING:", {
+            responseStatus: researchResponse.status,
+            responseHeaders: researchResponse.headers.get('content-type'),
+            dataKeys: Object.keys(researchData),
+            hasPapers: !!researchData.papers,
+            hasCitations: !!researchData.citations,
+            papersCount: researchData.papers?.length || 'undefined',
+            citationsCount: researchData.citations?.length || 'undefined',
+            papersIsArray: Array.isArray(researchData.papers),
+            citationsIsArray: Array.isArray(researchData.citations),
+            sampleTitles: (researchData.papers || []).slice(0, 3).map((p: any) => p.title?.substring(0, 40)),
+            expectedCount: 10,
+            actualCount: (researchData.papers || researchData.citations || []).length
+          });
           
           // Extract citations from the enhanced research response
           if (researchData.papers && researchData.papers.length > 0) {
@@ -218,6 +237,29 @@ export async function POST(request: NextRequest) {
               source: paper.source || 'Enhanced PubMed',
               meshTerms: paper.meshTerms || []
             }));
+          } else if (researchData.citations && researchData.citations.length > 0) {
+            // 🔧 FALLBACK: Handle 'citations' field for new format compatibility
+            console.log("🔄 Using 'citations' field from research response (new format)");
+            citations = researchData.citations.map((paper: any) => ({
+              id: paper.id,
+              title: paper.title,
+              authors: paper.authors || [],
+              journal: paper.journal,
+              year: paper.year,
+              pmid: paper.pmid,
+              doi: paper.doi,
+              url: paper.url,
+              abstract: paper.abstract,
+              studyType: paper.studyType || 'Research Article',
+              confidenceScore: paper.confidenceScore || 85,
+              evidenceLevel: paper.evidenceLevel || 'Level 3 (Moderate) Evidence',
+              source: paper.source || 'Enhanced PubMed',
+              meshTerms: paper.meshTerms || []
+            }));
+          }
+          
+          if (citations.length > 0) {
+            console.log(`✅ CITATION EXTRACTION SUCCESS: Extracted ${citations.length} citations from research API`);
 
             // Generate enhanced context summary that instructs AI to use the papers
             ragContext = generateEnhancedContextSummary(citations, userMessage, researchData);
@@ -235,7 +277,7 @@ export async function POST(request: NextRequest) {
               ragContext += `\n\n⚠️ AI PROCESSING NOTE: Using ${relevantCitationsForAI.length} highly relevant papers for analysis (${citations.length - relevantCitationsForAI.length} lower relevance papers excluded from analysis but shown for transparency).\n`;
             }
           } else {
-            console.log("Enhanced Research found no papers");
+            console.log("🚨 Enhanced Research found no papers in either 'papers' or 'citations' fields");
             ragContext = "No research papers found through enhanced search.";
           }
         } else {

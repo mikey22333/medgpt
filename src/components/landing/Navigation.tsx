@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Brain, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -39,16 +40,14 @@ export default function Navigation() {
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       className={`fixed top-0 w-full z-50 transition-all duration-300 ${
-        isScrolled ? "glassmorphism shadow-lg" : "bg-white/10 backdrop-blur-sm"
+        isScrolled ? "glassmorphism shadow-lg" : "bg-white border-b border-slate-200"
       }`}
     >
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 medical-gradient rounded-lg flex items-center justify-center">
-              <Brain className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-bold text-slate-900">MedGPT Scholar</span>
+            <Logo />
+            <span className="text-xl font-bold text-slate-900">CliniSynth</span>
           </div>
 
           {/* Desktop Navigation */}

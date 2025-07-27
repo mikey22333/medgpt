@@ -180,7 +180,7 @@ async function analyzeDocumentWithAI(
   let prompt = "";
   
   if (mode === 'doctor') {
-    prompt = `You are MedGPT, a compassionate and knowledgeable virtual doctor.
+    prompt = `You are CliniSynth, a compassionate and knowledgeable virtual doctor.
 
 You respond like a board-certified physician with clinical clarity, using simple language for patients and precise language for professionals.
 
@@ -236,7 +236,7 @@ Please format your response in clear, professional language.`;
       {
         role: "system" as const,
         content: mode === 'doctor' 
-          ? "You are MedGPT, a compassionate virtual doctor providing clear, empathetic guidance. Use simple language and avoid citations or references."
+          ? "You are CliniSynth, a compassionate virtual doctor providing clear, empathetic guidance. Use simple language and avoid citations or references."
           : "You are a medical AI assistant providing evidence-based analysis of medical documents."
       },
       {

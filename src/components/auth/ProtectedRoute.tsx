@@ -30,7 +30,7 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
               <Sparkles className="h-6 w-6 animate-pulse" />
             </div>
             <div className="text-center">
-              <h2 className="text-lg font-semibold text-gray-900">Loading MedGPT Scholar</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Loading CliniSynth</h2>
               <p className="text-sm text-gray-600">Preparing your medical research assistant...</p>
             </div>
           </div>

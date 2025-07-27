@@ -11,7 +11,7 @@ const plans = [
   {
     name: "Starter Plan",
     price: "Free",
-    description: "Perfect for trying out MedGPT Scholar",
+    description: "Perfect for trying out CliniSynth",
     features: [
       { name: "3 queries per day", included: true },
       { name: "Basic GRADE assessment", included: true },

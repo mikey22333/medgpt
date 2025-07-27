@@ -32,7 +32,7 @@ export abstract class BaseSearchClient {
     const defaultOptions: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'MedGPT-Scholar/1.0',
+        'User-Agent': 'CliniSynth/1.0',
         ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` })
       },
       ...options

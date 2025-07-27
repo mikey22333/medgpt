@@ -16,7 +16,7 @@ type LogLevel = keyof typeof LogLevels;
 // Schema for log entry
 const LogEntrySchema = z.object({
   timestamp: z.string().datetime(),
-  level: z.enum(Object.keys(LogLevels) as [string, ...string[]]),
+  level: z.enum(Object.keys(LogLevels) as [LogLevel, ...LogLevel[]]),
   message: z.string(),
   requestId: z.string().optional(),
   sessionId: z.string().optional(),
@@ -24,10 +24,7 @@ const LogEntrySchema = z.object({
   error: z.any().optional(),
   stack: z.string().optional(),
   durationMs: z.number().optional(),
-  ...Object.fromEntries(
-    Object.keys(process.env).map(key => [key, z.any().optional()])
-  ),
-});
+}).catchall(z.any()); // Allow additional properties
 
 type LogEntry = z.infer<typeof LogEntrySchema>;
 
@@ -127,7 +124,17 @@ export class Logger {
 
     // Output to console based on environment
     if (process.env.NODE_ENV !== 'test') {
-      const consoleMethod = console[level] || console.log;
+      // Map log levels to console methods safely
+      const consoleMethodMap: Record<LogLevel, (...args: any[]) => void> = {
+        error: console.error,
+        warn: console.warn,
+        info: console.info,
+        http: console.log, // Use console.log for http level
+        debug: console.debug || console.log,
+        trace: console.log,
+      };
+      
+      const consoleMethod = consoleMethodMap[level] || console.log;
       consoleMethod(formattedMessage);
     }
 
@@ -150,13 +157,15 @@ export class Logger {
     let formatted = `[${time}] ${levelUpper} ${this.name}: ${message}`;
     
     // Add additional data if present
-    const data = { ...rest };
-    delete data.timestamp;
-    delete data.level;
-    delete data.message;
-    delete data.requestId;
-    delete data.sessionId;
-    delete data.userId;
+    const data: Record<string, any> = { ...rest };
+    
+    // Remove standard fields from data display
+    const fieldsToRemove = ['requestId', 'sessionId', 'userId'];
+    fieldsToRemove.forEach(field => {
+      if (field in data) {
+        delete data[field];
+      }
+    });
     
     if (Object.keys(data).length > 0) {
       try {

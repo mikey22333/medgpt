@@ -1,5 +1,5 @@
 @echo off
-echo 🧠 MedGPT Scholar Setup Script
+echo 🧠 CliniSynth Setup Script
 echo ==============================
 echo.
 
@@ -45,7 +45,7 @@ if not exist ".env.local" (
 echo.
 echo 🎉 Setup complete!
 echo.
-echo To start MedGPT Scholar:
+echo To start CliniSynth:
 echo 1. Make sure Ollama is running: ollama serve
 echo 2. Start the development server: npm run dev
 echo 3. Open http://localhost:3000 in your browser

@@ -1,5 +1,5 @@
 /**
- * Deep Thinking Framework for MedGPT Scholar
+ * Deep Thinking Framework for CliniSynth
  * Implements multi-step reasoning, evidence synthesis, and uncertainty quantification
  */
 

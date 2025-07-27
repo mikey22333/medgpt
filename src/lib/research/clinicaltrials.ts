@@ -50,7 +50,7 @@ export class ClinicalTrialsClient {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'MedGPT-Scholar/1.0'
+          'User-Agent': 'CliniSynth/1.0'
         }
       });
 

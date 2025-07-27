@@ -74,7 +74,22 @@ export class PubMedClient {
         throw new Error(`PMC search failed: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      // Check if response is HTML (maintenance mode)
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/html')) {
+        console.warn('🚧 PubMed API is in maintenance mode (returning HTML instead of JSON)');
+        return [];
+      }
+
+      const responseText = await response.text();
+      
+      // Additional check for HTML content
+      if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html') || responseText.trim().startsWith('<?xml')) {
+        console.warn('🚧 PubMed API returned HTML/XML maintenance page instead of JSON data');
+        return [];
+      }
+
+      const data = JSON.parse(responseText);
       
       // Handle error responses gracefully
       if (data.esearchresult && data.esearchresult.ERROR) {
@@ -84,7 +99,11 @@ export class PubMedClient {
       
       return data.esearchresult?.idlist || [];
     } catch (error) {
-      console.error("PMC search error:", error);
+      if (error instanceof SyntaxError && error.message.includes('Unexpected token')) {
+        console.warn('🚧 PubMed API returned non-JSON response (likely maintenance mode)');
+      } else {
+        console.error("PMC search error:", error);
+      }
       return []; // Return empty array instead of throwing
     }
   }

@@ -3,6 +3,8 @@ import { PubMedClient } from "@/lib/research/pubmed";
 import AdvancedPubMedClient from "@/lib/research/advanced-pubmed";
 import SemanticResearchRanker from "@/lib/research/semantic-ranker";
 import MedicalQueryProcessor from "@/lib/research/query-processor";
+// Import the improved query processor
+import { ImprovedQueryProcessor } from "@/lib/research/improved-query-processor";
 import { SemanticScholarClient } from "@/lib/research/semantic-scholar";
 import { crossRefAPI, medicalResearchHelpers } from "@/lib/research/crossref";
 import { EuropePMCClient } from "@/lib/research/europepmc";
@@ -14,6 +16,13 @@ import { BioRxivClient } from "@/lib/research/biorxiv";
 import { ClinicalTrialsClient } from "@/lib/research/clinicaltrials";
 import { GuidelineCentralClient } from "@/lib/research/guideline-central";
 import { NIHReporterClient } from "@/lib/research/nih-reporter";
+import { CellPressClient } from "@/lib/research/cell-press";
+// Enhanced orchestrator for intelligent source selection
+import { EnhancedResearchOrchestrator } from "@/lib/research/enhanced-orchestrator";
+// Enhanced relevance detection system  
+import { MedicalRelevanceDetector } from "@/lib/research/medical-relevance-detector";
+// Import the enhanced relevance filter
+import { EnhancedMedicalRelevanceFilter } from "@/lib/research/enhanced-relevance-filter";
 // Semantic search service to fix irrelevant citations
 import { SemanticMedicalSearchService } from "@/lib/research/semantic-search";
 import { type ResearchQuery, type PubMedArticle, type SemanticScholarPaper, type CrossRefPaper } from "@/lib/types/research";
@@ -59,7 +68,35 @@ function identifyMedicalDomains(query: string): string[] {
 }
 
 async function generateSemanticQueryVariants(query: string): Promise<string[]> {
-  return [query, query.replace(/\s+/g, ' ').trim()];
+  const variants = [query];
+  
+  // CONSENSUS.APP STYLE: Generate semantic variants that capture the same intent
+  const lowerQuery = query.toLowerCase();
+  
+  // Medical concept expansion
+  if (lowerQuery.includes('breastfeeding') || lowerQuery.includes('breast feeding')) {
+    variants.push(query.replace(/breastfeeding|breast feeding/gi, 'lactation'));
+    variants.push(query + ' infant feeding');
+    variants.push(query + ' maternal nutrition');
+  }
+  
+  if (lowerQuery.includes('childhood asthma') || lowerQuery.includes('pediatric asthma')) {
+    variants.push(query.replace(/childhood|pediatric/gi, 'infant'));
+    variants.push(query + ' respiratory allergy');
+    variants.push(query + ' atopic disease');
+  }
+  
+  if (lowerQuery.includes('reduce') || lowerQuery.includes('prevent')) {
+    variants.push(query.replace(/reduce|prevent/gi, 'protective effect'));
+    variants.push(query.replace(/reduce|prevent/gi, 'lower risk'));
+  }
+  
+  // Study design variations
+  variants.push(query + ' systematic review');
+  variants.push(query + ' meta-analysis');
+  variants.push(query + ' cohort study');
+  
+  return [...new Set(variants)]; // Remove duplicates
 }
 
 function extractResearchConcepts(query: string): string[] {
@@ -199,10 +236,24 @@ function isMedicallyRelevant(title: string, abstract: string = "", journal: stri
     'cancer', 'tumor', 'diabetes', 'hypertension', 'infection', 'inflammation', 'stroke',
     'heart attack', 'pneumonia', 'asthma', 'copd', 'alzheimer', 'parkinson', 'epilepsy',
     
+    // Pediatric and maternal health terms - CRITICAL FOR BREASTFEEDING/CHILDHOOD QUERIES
+    'breastfeeding', 'breast feeding', 'lactation', 'infant', 'child', 'children', 'childhood',
+    'pediatric', 'paediatric', 'maternal', 'pregnancy', 'prenatal', 'postnatal', 'newborn',
+    'baby', 'toddler', 'adolescent', 'growth', 'development', 'allergy', 'atopy', 'wheeze',
+    'wheezing', 'respiratory health', 'immune development', 'feeding', 'formula',
+    
     // Nutritional/supplement terms - CRITICAL FOR OMEGA-3 QUERIES
     'omega-3', 'omega 3', 'fatty acid', 'epa', 'dha', 'fish oil', 'polyunsaturated',
     'supplement', 'supplementation', 'nutrition', 'nutritional', 'diet', 'dietary',
     'vitamin', 'mineral', 'antidepressant', 'mood', 'mental health', 'depression',
+    
+    // Lipid/cholesterol terms - CRITICAL FOR HYPERLIPIDEMIA QUERIES
+    'cholesterol', 'ldl', 'hdl', 'triglycerides', 'lipid', 'lipids', 'lipoprotein',
+    'hyperlipidemia', 'hypercholesterolemia', 'dyslipidemia', 'statin', 'statins',
+    'atorvastatin', 'simvastatin', 'rosuvastatin', 'pravastatin', 'lovastatin',
+    'hmg-coa reductase', 'fibrate', 'niacin', 'bile acid sequestrant', 'ezetimibe',
+    'pcsk9 inhibitor', 'alirocumab', 'evolocumab', 'cardiovascular risk',
+    'atherosclerosis', 'coronary artery disease', 'myocardial infarction',
     
     // Research terms
     'clinical trial', 'cohort study', 'case report', 'systematic review', 'meta-analysis',
@@ -271,6 +322,16 @@ function isMedicallyRelevant(title: string, abstract: string = "", journal: stri
       const hasOmega3Content = omega3Terms.some(term => combinedText.includes(term));
       if (hasOmega3Content) score += 3; // Higher bonus for omega-3 relevance
     }
+    
+    // Hyperlipidemia and cholesterol specific bonus scoring
+    if (queryLower.includes('hyperlipidemia') || queryLower.includes('cholesterol') || queryLower.includes('lipid') || 
+        queryLower.includes('statin') || queryLower.includes('dyslipidemia') || queryLower.includes('triglyceride')) {
+      const lipidTerms = ['cholesterol', 'ldl', 'hdl', 'triglycerides', 'lipid', 'lipids', 'hyperlipidemia', 
+                          'dyslipidemia', 'statin', 'statins', 'atorvastatin', 'simvastatin', 'rosuvastatin',
+                          'cardiovascular', 'atherosclerosis', 'coronary', 'fibrate', 'niacin', 'ezetimibe'];
+      const hasLipidContent = lipidTerms.some(term => combinedText.includes(term));
+      if (hasLipidContent) score += 3; // Higher bonus for lipid/cholesterol relevance
+    }
   }
   
   return score >= 3; // Must meet minimum medical relevance threshold
@@ -290,15 +351,39 @@ async function searchMedicalCrossRef(query: string, options: { limit?: number } 
     let enhancedQuery = query;
     if (query.toLowerCase().includes('hypertension') || query.toLowerCase().includes('blood pressure')) {
       enhancedQuery = `${query} AND (hypertension OR "blood pressure" OR cardiovascular OR "lifestyle intervention" OR "diet therapy" OR "exercise therapy" OR antihypertensive)`;
+    } else if (query.toLowerCase().includes('zinc') && (query.toLowerCase().includes('cold') || query.toLowerCase().includes('respiratory'))) {
+      // Zinc and common cold specific enhancement - trust semantic search to find relevant papers
+      enhancedQuery = `${query} AND (zinc OR "zinc supplementation" OR "common cold" OR rhinovirus OR "upper respiratory" OR "respiratory tract infection" OR lozenges OR "cold duration" OR "cold symptoms")`;
+    } else if (query.toLowerCase().includes('common cold') || (query.toLowerCase().includes('cold') && query.toLowerCase().includes('symptoms'))) {
+      // Common cold specific enhancement - let semantic ranking handle relevance
+      enhancedQuery = `${query} AND ("common cold" OR rhinovirus OR "upper respiratory infection" OR "cold symptoms" OR "cold duration" OR "respiratory tract infection")`;
+    } else if (query.toLowerCase().includes('breastfeeding') && query.toLowerCase().includes('asthma')) {
+      // Breastfeeding and asthma specific enhancement - important pediatric research topic
+      enhancedQuery = `${query} AND (breastfeeding OR "breast feeding" OR lactation OR "infant feeding" OR asthma OR "childhood asthma" OR "pediatric asthma" OR wheeze OR wheezing OR atopy OR allergy OR "respiratory health" OR "immune development")`;
+    } else if (query.toLowerCase().includes('breastfeeding') || query.toLowerCase().includes('breast feeding')) {
+      // General breastfeeding enhancement
+      enhancedQuery = `${query} AND (breastfeeding OR "breast feeding" OR lactation OR "infant feeding" OR "maternal health" OR pediatric OR infant OR child)`;
     } else if (query.toLowerCase().includes('covid') || query.toLowerCase().includes('coronavirus') || query.toLowerCase().includes('sars-cov-2')) {
       // COVID-19 specific enhancement
       enhancedQuery = `${query} AND (covid OR "covid-19" OR "sars-cov-2" OR coronavirus OR "long covid" OR "post covid" OR viral OR respiratory OR pandemic)`;
+    } else if (query.toLowerCase().includes('vaccine') || query.toLowerCase().includes('vaccination') || query.toLowerCase().includes('autism')) {
+      // Vaccine/autism specific enhancement - CRITICAL for accurate results
+      enhancedQuery = `${query} AND (vaccine OR vaccination OR immunization OR immunisation OR autism OR "autism spectrum disorder" OR "developmental disorder" OR safety OR "adverse events" OR epidemiology)`;
     } else if (query.toLowerCase().includes('omega') || query.toLowerCase().includes('fatty acid') || query.toLowerCase().includes('fish oil')) {
       // Omega-3 specific enhancement
       enhancedQuery = `${query} AND ("omega-3" OR "fatty acid" OR "fish oil" OR EPA OR DHA OR polyunsaturated OR depression OR "mental health" OR supplement)`;
+    } else if (query.toLowerCase().includes('diabetes') || query.toLowerCase().includes('blood sugar') || query.toLowerCase().includes('glucose')) {
+      // Diabetes specific enhancement
+      enhancedQuery = `${query} AND (diabetes OR "blood sugar" OR glucose OR insulin OR "diabetic" OR "glycemic control" OR "blood glucose" OR "type 2 diabetes" OR "type 1 diabetes")`;
+    } else if (query.toLowerCase().includes('cancer') || query.toLowerCase().includes('tumor') || query.toLowerCase().includes('oncology')) {
+      // Cancer specific enhancement
+      enhancedQuery = `${query} AND (cancer OR tumor OR tumour OR oncology OR chemotherapy OR radiation OR malignant OR carcinoma OR "cancer treatment")`;
+    } else if (query.toLowerCase().includes('heart') || query.toLowerCase().includes('cardiac') || query.toLowerCase().includes('cardiovascular')) {
+      // Cardiovascular specific enhancement
+      enhancedQuery = `${query} AND (heart OR cardiac OR cardiovascular OR "heart disease" OR "coronary artery" OR "myocardial infarction" OR "heart failure" OR cardiology)`;
     } else {
-      // General medical enhancement
-      enhancedQuery = `${query} AND (${medicalTerms.slice(0, 4).join(' OR ')})`;
+      // General medical enhancement for ALL queries
+      enhancedQuery = `${query} AND (medical OR clinical OR health OR patient OR treatment OR therapy OR disease OR diagnosis OR healthcare OR study OR research)`;
     }
     
     console.log(`🔍 Enhanced CrossRef query: ${enhancedQuery}`);
@@ -325,6 +410,58 @@ async function searchMedicalCrossRef(query: string, options: { limit?: number } 
       // Additional strict filtering to exclude business/psychology papers
       const combinedText = `${title} ${abstract} ${journal}`.toLowerCase();
       
+      // ENHANCED QUERY-SPECIFIC FILTERING for better relevance
+      let isQueryRelevant = true;
+      
+      // For vaccine/autism queries, ensure papers actually discuss vaccines or autism
+      if (query.toLowerCase().includes('vaccine') || query.toLowerCase().includes('autism')) {
+        const hasVaccineContent = combinedText.includes('vaccine') || combinedText.includes('vaccination') || 
+                                 combinedText.includes('immunization') || combinedText.includes('immunisation');
+        const hasAutismContent = combinedText.includes('autism') || combinedText.includes('asd') || 
+                               combinedText.includes('developmental disorder') || combinedText.includes('neurodevelopment');
+        
+        // Exclude business/policy/economic papers even for vaccine/autism queries
+        const isBusinessOrPolicy = [
+          'business', 'management', 'economic', 'policy', 'strategic', 'organizational'
+        ].some(term => combinedText.includes(term));
+        
+        isQueryRelevant = (hasVaccineContent || hasAutismContent) && !isBusinessOrPolicy;
+        
+        if (!isQueryRelevant) {
+          console.log(`🚫 CrossRef: No vaccine/autism content in "${title.substring(0, 50)}..."`);
+        }
+      }
+      // For ALL other medical queries, check for query-specific content
+      else {
+        const queryWords = query.toLowerCase().split(' ').filter(word => word.length > 3);
+        const hasQueryRelevance = queryWords.some(word => 
+          combinedText.includes(word) || 
+          // Also check for medical synonyms and related terms
+          (word === 'diabetes' && (combinedText.includes('diabetic') || combinedText.includes('glucose') || combinedText.includes('insulin'))) ||
+          (word === 'cancer' && (combinedText.includes('tumor') || combinedText.includes('oncology') || combinedText.includes('malignant'))) ||
+          (word === 'heart' && (combinedText.includes('cardiac') || combinedText.includes('cardiovascular'))) ||
+          (word === 'depression' && (combinedText.includes('depressive') || combinedText.includes('mood') || combinedText.includes('mental health')))
+        );
+        
+        // Must have basic medical context OR strong query relevance
+        const hasMedicalContext = [
+          'medical', 'clinical', 'patient', 'treatment', 'therapy', 
+          'disease', 'diagnosis', 'therapeutic', 'pharmacological', 'guidelines'
+        ].some(term => combinedText.includes(term));
+        
+        // Exclude business/policy/economic papers, but allow medical management
+        const isBusinessOrPolicy = [
+          'business', 'economic', 'policy', 'strategic', 'organizational'
+        ].some(term => combinedText.includes(term)) && 
+        !['disease management', 'diabetes management', 'patient management'].some(medical => combinedText.includes(medical));
+        
+        isQueryRelevant = (hasQueryRelevance || hasMedicalContext) && !isBusinessOrPolicy;
+        
+        if (!isQueryRelevant) {
+          console.log(`🚫 CrossRef: No medical/query relevance in "${title.substring(0, 50)}..."`);
+        }
+      }
+      
       // Exclude non-medical domains completely
       const excludeTerms = [
         'business management', 'strategic management', 'firm resources', 
@@ -336,8 +473,8 @@ async function searchMedicalCrossRef(query: string, options: { limit?: number } 
       
       const isExcluded = excludeTerms.some(term => combinedText.includes(term));
       
-      // Must have medical content AND not be excluded
-      return isMedical && !isExcluded;
+      // Must have medical content AND be query relevant AND not be excluded
+      return isMedical && isQueryRelevant && !isExcluded;
     });
 
     console.log(`📄 Medically filtered CrossRef results: ${medicalResults.length}`);
@@ -449,6 +586,79 @@ function calculateMedicalRelevanceScore(title: string, abstract: string, journal
   }
   
   return Math.max(0, Math.min(1, score));
+}
+
+// SOURCE QUALITY FUNCTIONS: Prioritize PubMed as gold standard
+function getSourceQualityBonus(source: string | undefined): number {
+  if (!source) return 0;
+  
+  const sourceType = source.toLowerCase();
+  
+  // PubMed gets highest bonus (gold standard for medical research)
+  if (sourceType.includes('pubmed')) return 0.3;
+  
+  // Semantic Scholar is decent quality
+  if (sourceType.includes('semantic')) return 0.1;
+  
+  // Europe PMC and CrossRef get lower priority due to quality issues
+  if (sourceType.includes('europe') || sourceType.includes('crossref')) return -0.1;
+  
+  // Other sources neutral
+  return 0;
+}
+
+function getSourceAdjustedThreshold(source: string | undefined, baseThreshold: number): number {
+  if (!source) return baseThreshold;
+  
+  const sourceType = source.toLowerCase();
+  
+  // PubMed gets relaxed threshold (easier to pass due to high quality) - when available
+  if (sourceType.includes('pubmed')) return baseThreshold - 0.1;
+  
+  // When PubMed is down, relax thresholds for other medical sources
+  if (sourceType.includes('europe')) return baseThreshold - 0.05; // More permissive than before (+0.2)
+  
+  // bioRxiv/medRxiv get relaxed threshold for cutting-edge research
+  if (sourceType.includes('biorxiv') || sourceType.includes('medrxiv')) return baseThreshold - 0.05;
+  
+  // FDA gets relaxed threshold for drug queries
+  if (sourceType.includes('fda')) return baseThreshold - 0.05;
+  
+  // CrossRef still needs higher threshold due to quality concerns
+  if (sourceType.includes('crossref')) return baseThreshold + 0.1; // Reduced from +0.2
+  
+  // Default threshold for other sources
+  return baseThreshold;
+}
+
+function getSourceQualityMultiplier(source: string | undefined): number {
+  if (!source) return 1.0;
+  
+  const sourceType = source.toLowerCase();
+  
+  // PubMed papers get significant boost in final ranking (gold standard) - when available
+  if (sourceType.includes('pubmed')) return 1.5;
+  
+  // When PubMed is down, boost other high-quality medical sources
+  if (sourceType.includes('semantic')) return 1.2; // Increased from 1.1
+  
+  // Europe PMC gets boost when PubMed unavailable (has 123k+ medical papers)
+  if (sourceType.includes('europe')) return 1.1; // Changed from 0.8 penalty to 1.1 boost
+  
+  // bioRxiv/medRxiv get boost for cutting-edge research
+  if (sourceType.includes('biorxiv') || sourceType.includes('medrxiv')) return 1.15;
+  
+  // FDA gets boost for drug-related queries  
+  if (sourceType.includes('fda')) return 1.1;
+  
+  // ClinicalTrials.gov gets boost for treatment research
+  if (sourceType.includes('clinicaltrials')) return 1.1;
+  
+  // CrossRef gets moderate penalty (still has quality issues)
+  if (sourceType.includes('crossref')) return 0.9; // Reduced penalty from 0.8
+  
+  // Other sources remain neutral
+  return 1.0;
 }
 
 function calculateEvidenceQualityScore(paper: any): number {
@@ -620,27 +830,48 @@ export async function POST(request: NextRequest) {
     // Perform actual research search for both chat and direct requests with ALL 15+ APIs
     console.log(`🔍 Research activated for query: "${query}"`);
       
-      // 🧠 STEP 1: Query Analysis
-      const queryAnalysis = MedicalQueryProcessor.processQuery(query);
+      // 🧠 STEP 1: Enhanced Query Analysis with PICO Framework
+      console.log("🔬 Using ImprovedQueryProcessor for better relevance...");
+      const queryAnalysis = ImprovedQueryProcessor.analyzeMedicalQuery(query);
+      const optimizedQueries = ImprovedQueryProcessor.generateOptimizedQueries(queryAnalysis);
+      
+      console.log("📊 Query Analysis:", {
+        queryType: queryAnalysis.queryType,
+        condition: queryAnalysis.condition,
+        intervention: queryAnalysis.intervention,
+        population: queryAnalysis.population,
+        medicalConcepts: queryAnalysis.medicalConcepts
+      });
+      
+      console.log("🎯 Optimized Queries:", {
+        pubmed: optimizedQueries.pubmedQuery.substring(0, 100) + "...",
+        semanticScholar: optimizedQueries.semanticScholarQuery,
+        europePMC: optimizedQueries.europePMCQuery.substring(0, 100) + "...",
+        crossref: optimizedQueries.crossrefQuery,
+        openAlex: optimizedQueries.openAlexQuery
+      });
+      
+      // Legacy fallback for existing code compatibility
       const medicalDomains = identifyMedicalDomains(query);
-      const queryVariants = await generateSemanticQueryVariants(query);
+      const queryVariants = [query]; // Simplified - no more dilution
       const researchConcepts = extractResearchConcepts(query);
       const meshTerms = generateMeSHTerms(query, medicalDomains);
       
-      // Build search strategy
+      // Build search strategy (updated to use optimized queries)
       const searchStrategy = {
         originalQuery: query,
         semanticVariants: queryVariants,
         researchConcepts: researchConcepts,
         domains: medicalDomains,
         meshTerms: meshTerms,
-        enhancedQuery: queryAnalysis.enhancedQuery
+        enhancedQuery: optimizedQueries.pubmedQuery, // Use optimized PubMed query
+        optimizedQueries: optimizedQueries // Add the new optimized queries
       };
 
       // 🔍 STEP 2: Multi-Database Semantic Search with Enhanced Queries
       const semanticRanker = new SemanticResearchRanker();
       
-      const maxResults = 35; // Increased to get significantly more citations for comprehensive research coverage
+      const maxResults = 50; // Increased to 50 to guarantee sufficient papers for 10 high-quality citations
       let pubmedPapers: PubMedArticle[] = [];
       let crossRefPapers: CrossRefPaper[] = [];
       let semanticScholarPapers: SemanticScholarPaper[] = [];
@@ -671,7 +902,7 @@ export async function POST(request: NextRequest) {
             
             pubmedPapers = await pubmedClient.searchArticles({
               query: enhancedPubMedQuery,
-              maxResults: Math.ceil(maxResults * 0.25),
+              maxResults: Math.ceil(maxResults * 0.4), // Increased from 0.25 to 0.4 - PubMed gets priority
               source: "pubmed",
             });
           } catch (error) {
@@ -681,34 +912,38 @@ export async function POST(request: NextRequest) {
       );
       let totalPapersScanned = 0; // Track total papers analyzed
 
-      // API 1: Enhanced PubMed Search (Primary medical literature)
+      // API 1: Enhanced PubMed Search (Primary medical literature) - NOW USING OPTIMIZED QUERIES
       try {
         const advancedPubMedClient = new AdvancedPubMedClient(process.env.PUBMED_API_KEY);
         
-        // Use advanced search with MeSH terms and quality filters - SIGNIFICANTLY INCREASED LIMITS
-        pubmedPapers = await advancedPubMedClient.searchAdvanced(queryAnalysis.enhancedQuery, {
-          maxResults: 50, // Further increased from 35 to ensure comprehensive coverage
-          studyTypes: queryAnalysis.studyTypes,
-          includeMetaAnalyses: queryAnalysis.filters.includeMetaAnalyses,
-          includeRCTs: queryAnalysis.filters.includeRCTs,
-          recentYears: queryAnalysis.filters.recentYearsOnly || undefined
+        console.log(`🔬 PubMed using optimized MeSH query: ${optimizedQueries.pubmedQuery.substring(0, 150)}...`);
+        
+        // Use optimized PubMed query with MeSH terms and Boolean logic
+        pubmedPapers = await advancedPubMedClient.searchAdvanced(optimizedQueries.pubmedQuery, {
+          maxResults: 50,
+          studyTypes: [queryAnalysis.queryType], // Use detected query type
+          includeMetaAnalyses: queryAnalysis.queryType === 'treatment',
+          includeRCTs: queryAnalysis.queryType === 'treatment', 
+          recentYears: undefined // Let the optimized query handle quality filters
         });
         
-        // Also search for landmark studies if relevant
-        if (queryAnalysis.searchStrategy === 'focused') {
-          const landmarkStudies = await advancedPubMedClient.searchLandmarkStudies(query, 20); // Increased from 15
+        // Also search for landmark studies if treatment query
+        if (queryAnalysis.queryType === 'treatment') {
+          console.log("🏆 Searching for landmark treatment studies...");
+          const landmarkStudies = await advancedPubMedClient.searchLandmarkStudies(optimizedQueries.pubmedQuery, 20);
           pubmedPapers = [...pubmedPapers, ...landmarkStudies];
         }
         
         totalPapersScanned += pubmedPapers.length;
+        console.log(`✅ PubMed found ${pubmedPapers.length} papers with optimized query`);
       } catch (error) {
-        console.error("Enhanced PubMed search error:", error);
+        console.error("❌ Enhanced PubMed search error:", error);
         
-        // Fallback to basic PubMed
+        // Fallback to basic PubMed with optimized query
         try {
           const basicPubMedClient = new PubMedClient(process.env.PUBMED_API_KEY);
           pubmedPapers = await basicPubMedClient.searchArticles({
-            query: buildHighQualitySearchQuery(query),
+            query: optimizedQueries.pubmedQuery, // Use optimized query in fallback too
             maxResults: 10,
             source: "pubmed",
           });
@@ -722,21 +957,16 @@ export async function POST(request: NextRequest) {
       const pubmedResultCount = pubmedPapers.length;
       const needsMoreSources = pubmedResultCount < 2;
 
-      // API 2: Search Semantic Scholar (AI-powered research) - ENHANCED MEDICAL FILTERING
+      // API 2: Search Semantic Scholar (AI-powered research) - NOW USING OPTIMIZED NATURAL LANGUAGE
       try {
         const semanticScholarClient = new SemanticScholarClient(process.env.SEMANTIC_SCHOLAR_API_KEY);
         
-        // Use raw query for Semantic Scholar - let their AI handle semantic understanding
-        let enhancedSemanticQuery = query;
+        console.log(`🧠 Semantic Scholar using optimized natural language query: "${optimizedQueries.semanticScholarQuery}"`);
         
-        // Only add minimal medical context to avoid diluting the query
-        if (!query.toLowerCase().includes('medical') && !query.toLowerCase().includes('clinical')) {
-          enhancedSemanticQuery = `${query} medical`;
-        }
-        
+        // Use the optimized natural language query designed for Semantic Scholar's AI
         const rawResults = await semanticScholarClient.searchPapers({
-          query: enhancedSemanticQuery,
-          maxResults: Math.min(needsMoreSources ? 60 : 50, 80), // Significantly increased for comprehensive medical coverage
+          query: optimizedQueries.semanticScholarQuery, // Use optimized query instead of manual enhancement
+          maxResults: Math.min(needsMoreSources ? 60 : 50, 80),
           source: "semantic-scholar",
         });
         
@@ -747,9 +977,10 @@ export async function POST(request: NextRequest) {
           
           const isRelevant = isMedicallyRelevant(title, abstract, venue, [], query);
           return isRelevant;
-        }).slice(0, needsMoreSources ? 25 : 20); // Significantly increased to keep more relevant papers
+        }).slice(0, needsMoreSources ? 25 : 20);
         
         totalPapersScanned += rawResults.length;
+        console.log(`✅ Semantic Scholar found ${semanticScholarPapers.length} relevant papers from ${rawResults.length} total`);
         
         // If no results after filtering, try a more specific medical query
         if (semanticScholarPapers.length === 0 && rawResults.length > 0) {
@@ -794,15 +1025,146 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // API 3: Search Europe PMC (European biomedical literature) - Enhanced when needed
+      // API 3: Search Europe PMC (European biomedical literature) - Enhanced with query-specific filtering
       try {
         const europePMCClient = new EuropePMCClient();
-        europePMCPapers = await europePMCClient.searchArticles({
-          query: query,
-          maxResults: needsMoreSources ? 15 : 10, // Increased from 8/5 to get more biomedical literature
+        
+        // Enhanced query building for specific medical conditions (universal approach)
+        let enhancedEuropePMCQuery = query;
+        
+        // DRUG CLASSIFICATION QUERIES - Critical enhancement
+        if (query.toLowerCase().includes('hyperlipidemia') || query.toLowerCase().includes('lipid') || 
+            query.toLowerCase().includes('cholesterol') || query.toLowerCase().includes('statin')) {
+          // Hyperlipidemia/lipid management specific enhancement
+          enhancedEuropePMCQuery = `${query} AND (hyperlipidemia OR "lipid management" OR cholesterol OR statin OR "HMG-CoA reductase" OR atorvastatin OR simvastatin OR "bile acid" OR ezetimibe OR fibrate OR niacin OR "lipid lowering" OR dyslipidemia OR "cardiovascular risk")`;
+        } else if (query.toLowerCase().includes('drug') && (query.toLowerCase().includes('class') || query.toLowerCase().includes('mechanism'))) {
+          // Drug classification queries
+          enhancedEuropePMCQuery = `${query} AND (pharmacology OR "mechanism of action" OR "drug class" OR therapeutic OR pharmaceutical OR medication OR "drug therapy" OR pharmacokinetics OR pharmacodynamics)`;
+        } else if (query.toLowerCase().includes('vaccine') || query.toLowerCase().includes('autism')) {
+          // Vaccine/autism specific enhancement
+          enhancedEuropePMCQuery = `${query} AND (vaccine OR vaccination OR immunization OR autism OR "autism spectrum disorder" OR safety OR epidemiology)`;
+        } else if (query.toLowerCase().includes('diabetes') || query.toLowerCase().includes('blood sugar')) {
+          // Diabetes specific enhancement
+          enhancedEuropePMCQuery = `${query} AND (diabetes OR "blood sugar" OR glucose OR insulin OR diabetic OR "glycemic control")`;
+        } else if (query.toLowerCase().includes('cancer') || query.toLowerCase().includes('tumor')) {
+          // Cancer specific enhancement
+          enhancedEuropePMCQuery = `${query} AND (cancer OR tumor OR oncology OR chemotherapy OR malignant OR carcinoma)`;
+        } else if (query.toLowerCase().includes('heart') || query.toLowerCase().includes('cardiac')) {
+          // Cardiovascular specific enhancement
+          enhancedEuropePMCQuery = `${query} AND (heart OR cardiac OR cardiovascular OR "heart disease" OR cardiology)`;
+        } else if (query.toLowerCase().includes('depression') || query.toLowerCase().includes('mental health')) {
+          // Mental health specific enhancement
+          enhancedEuropePMCQuery = `${query} AND (depression OR "mental health" OR psychiatric OR mood OR anxiety OR therapy)`;
+        } else {
+          // General medical enhancement for ALL queries
+          enhancedEuropePMCQuery = `${query} AND (medical OR clinical OR health OR patient OR treatment OR therapy OR disease OR study)`;
+        }
+        
+        console.log(`� Europe PMC using optimized structured query: ${optimizedQueries.europePMCQuery}`);
+        
+        const rawEuropePMCResults = await europePMCClient.searchArticles({
+          query: optimizedQueries.europePMCQuery, // Use the optimized Europe PMC query
+          maxResults: needsMoreSources ? 15 : 12,
           source: "europepmc",
         });
-        totalPapersScanned += europePMCPapers.length;
+        
+        // Apply enhanced query-specific filtering with better drug classification support
+        europePMCPapers = rawEuropePMCResults.filter(paper => {
+          const title = (paper.title || '').toLowerCase();
+          const abstract = (paper.abstract || '').toLowerCase();
+          const journal = (paper.journal || '').toLowerCase();
+          const combinedText = `${title} ${abstract} ${journal}`;
+          
+        // ENHANCED DRUG CLASSIFICATION FILTERING
+        if (query.toLowerCase().includes('hyperlipidemia') || query.toLowerCase().includes('lipid') || 
+            query.toLowerCase().includes('cholesterol') || query.toLowerCase().includes('statin')) {
+          // Hyperlipidemia/lipid management queries - be very permissive for relevant content
+          const hasLipidContent = [
+            'hyperlipidemia', 'dyslipidemia', 'cholesterol', 'lipid', 'statin', 'atorvastatin', 
+            'simvastatin', 'rosuvastatin', 'pravastatin', 'lovastatin', 'fluvastatin',
+            'hmg-coa', 'hmg coa', 'ezetimibe', 'fibrate', 'gemfibrozil', 'fenofibrate',
+            'bile acid', 'cholestyramine', 'colesevelam', 'niacin', 'nicotinic acid',
+            'pcsk9', 'evolocumab', 'alirocumab', 'cardiovascular risk', 'atherosclerosis'
+          ].some(term => combinedText.includes(term));
+          
+          if (hasLipidContent) {
+            console.log(`✅ Europe PMC: Relevant lipid paper: "${paper.title.substring(0, 50)}..."`);
+            return true;
+          }
+        }
+        
+        // ENHANCED DRUG MECHANISM QUERIES
+        if (query.toLowerCase().includes('drug') && (query.toLowerCase().includes('class') || query.toLowerCase().includes('mechanism'))) {
+          const hasDrugContent = [
+            'pharmacology', 'mechanism of action', 'drug class', 'therapeutic', 'pharmaceutical',
+            'medication', 'drug therapy', 'pharmacokinetics', 'pharmacodynamics', 'receptor',
+            'enzyme inhibitor', 'antagonist', 'agonist', 'bioavailability', 'metabolism'
+          ].some(term => combinedText.includes(term));
+          
+          if (hasDrugContent) {
+            console.log(`✅ Europe PMC: Relevant drug mechanism paper: "${paper.title.substring(0, 50)}..."`);
+            return true;
+          }
+        }
+          
+        // UNIVERSAL QUERY-SPECIFIC FILTERING for all other medical queries  
+        if (query.toLowerCase().includes('vaccine') || query.toLowerCase().includes('autism')) {
+          // Vaccine/autism queries
+          const hasVaccineContent = combinedText.includes('vaccine') || combinedText.includes('vaccination') || 
+                                   combinedText.includes('immunization') || combinedText.includes('immunisation');
+          const hasAutismContent = combinedText.includes('autism') || combinedText.includes('asd') || 
+                                 combinedText.includes('developmental disorder') || combinedText.includes('neurodevelopment');
+          
+          // Exclude business/policy/economic papers even for vaccine/autism queries
+          const isBusinessOrPolicy = [
+            'business', 'management', 'economic', 'policy', 'strategic', 'organizational'
+          ].some(term => combinedText.includes(term));
+          
+          const isQueryRelevant = (hasVaccineContent || hasAutismContent) && !isBusinessOrPolicy;            if (!isQueryRelevant) {
+              console.log(`🚫 Europe PMC: No vaccine/autism content in "${paper.title.substring(0, 50)}..."`);
+              return false;
+            }
+          } else {
+            // ALL other medical queries - RELAXED filtering for better recall
+            const queryWords = query.toLowerCase().split(' ').filter(word => word.length > 3);
+            const hasQueryRelevance = queryWords.some(word => 
+              combinedText.includes(word) ||
+              // Enhanced medical synonyms and related terms
+              (word === 'diabetes' && (combinedText.includes('diabetic') || combinedText.includes('glucose') || combinedText.includes('insulin'))) ||
+              (word === 'cancer' && (combinedText.includes('tumor') || combinedText.includes('oncology') || combinedText.includes('malignant'))) ||
+              (word === 'heart' && (combinedText.includes('cardiac') || combinedText.includes('cardiovascular'))) ||
+              (word === 'depression' && (combinedText.includes('depressive') || combinedText.includes('mood'))) ||
+              (word === 'treatment' && (combinedText.includes('therapy') || combinedText.includes('therapeutic') || combinedText.includes('intervention'))) ||
+              (word === 'mechanism' && (combinedText.includes('pathway') || combinedText.includes('molecular') || combinedText.includes('pharmacology')))
+            );
+            
+            // RELAXED medical context check - more permissive
+            const hasMedicalContext = [
+              'medical', 'clinical', 'patient', 'treatment', 'therapy', 'disease', 'diagnosis', 
+              'therapeutic', 'pharmacological', 'guidelines', 'health', 'medicine', 'study',
+              'research', 'hospital', 'physician', 'doctor', 'nurse', 'healthcare'
+            ].some(term => combinedText.includes(term));
+            
+            // Only exclude clearly non-medical content
+            const isBusinessOrPolicy = [
+              'business strategy', 'marketing', 'finance', 'economics', 'management theory',
+              'organizational behavior', 'corporate', 'sociology', 'psychology', 'philosophy'
+            ].some(term => combinedText.includes(term)) && 
+            !['medical management', 'disease management', 'patient management', 'health psychology', 'medical sociology'].some(medical => combinedText.includes(medical));
+            
+            const isRelevant = (hasQueryRelevance || hasMedicalContext) && !isBusinessOrPolicy;
+            
+            if (!isRelevant) {
+              console.log(`🚫 Europe PMC: No medical/query relevance in "${paper.title.substring(0, 50)}..."`);
+              return false;
+            }
+          }
+          
+          return true;
+        }).slice(0, needsMoreSources ? 10 : 8); // Increased limits for better coverage
+        
+        console.log(`📄 Europe PMC filtered results: ${rawEuropePMCResults.length} → ${europePMCPapers.length}`);
+        totalPapersScanned += rawEuropePMCResults.length;
       } catch (error) {
         console.error("Europe PMC search error:", error);
       }
@@ -969,11 +1331,12 @@ export async function POST(request: NextRequest) {
         console.log("ℹ️ FDA: Skipped (query doesn't contain medical product keywords)");
       }
 
-      // API 5: Search OpenAlex (Open access academic papers) - Enhanced when needed
+      // API 5: Search OpenAlex (Open access academic papers) - Enhanced with optimized query
       try {
+        console.log(`🔬 OpenAlex using optimized concept query: "${optimizedQueries.openAlexQuery}"`);
         const openAlexClient = new OpenAlexClient();
         openAlexPapers = await openAlexClient.searchPapers({
-          query: query,
+          query: optimizedQueries.openAlexQuery, // Use optimized query instead of raw query
           maxResults: 5, // Increased for more relevant results
           source: "openalex",
         });
@@ -982,11 +1345,12 @@ export async function POST(request: NextRequest) {
         console.error("OpenAlex search error:", error);
       }
 
-      // API 6: Search CrossRef (Scholarly research linking) - Enhanced Medical Filtering
+      // API 6: Search CrossRef (Scholarly research linking) - Enhanced with optimized query
       try {
+        console.log(`🔍 CrossRef using optimized phrase query: "${optimizedQueries.crossrefQuery}"`);
         console.log("🔍 Searching CrossRef with enhanced medical filtering...");
-        const crossRefResults = await searchMedicalCrossRef(query, {
-          limit: 12 // Increased from 8 to get more scholarly medical literature
+        const crossRefResults = await searchMedicalCrossRef(optimizedQueries.crossrefQuery, {
+          limit: 8 // Reduced from 12 to 8 - lower priority due to quality issues
         });
         
         totalPapersScanned += crossRefResults.length;
@@ -1078,10 +1442,28 @@ export async function POST(request: NextRequest) {
         console.log("💡 DOAJ: Using public API - no key required but may have rate limits");
       }
 
-      // API 8: Search bioRxiv/medRxiv (Free preprint servers) - DISABLED due to API issues
-      // TODO: Fix bioRxiv API endpoint (currently returning 500 error)
-      console.log("⚠️ bioRxiv/medRxiv: Temporarily disabled due to API server issues");
-      biorxivPreprints = []; // Empty array to prevent errors
+      // API 8: Search bioRxiv/medRxiv (Free preprint servers) - RE-ENABLED with fixed client
+      try {
+        console.log("🔍 Searching bioRxiv/medRxiv for cutting-edge preprints...");
+        const bioRxivClient = new BioRxivClient();
+        
+        // Search both bioRxiv and medRxiv in parallel
+        const [bioRxivResults, medRxivResults] = await Promise.all([
+          bioRxivClient.searchPreprints(query, needsMoreSources ? 6 : 4),
+          bioRxivClient.searchMedicalPreprints(query, needsMoreSources ? 8 : 5)
+        ]);
+        
+        // Combine results with preference for medRxiv (medical focus)
+        biorxivPreprints = [...medRxivResults, ...bioRxivResults].slice(0, needsMoreSources ? 12 : 8);
+        
+        console.log(`📄 bioRxiv/medRxiv: Found ${biorxivPreprints.length} preprints (${medRxivResults.length} medRxiv + ${bioRxivResults.length} bioRxiv)`);
+        totalPapersScanned += biorxivPreprints.length;
+        
+      } catch (error) {
+        console.error("❌ bioRxiv/medRxiv search error:", error);
+        console.log("💡 bioRxiv/medRxiv: Free preprint servers - check network connectivity");
+        biorxivPreprints = []; // Fallback to empty array
+      }
 
       // API 9: Search ClinicalTrials.gov (All Medical Domains) - Enhanced domain-specific search
       if (medicalDomains.includes('pharmaceuticals') || medicalDomains.includes('medical_devices') ||
@@ -1731,69 +2113,47 @@ export async function POST(request: NextRequest) {
         .sort((a, b) => b.consensusScore - a.consensusScore)
         .slice(0, 80); // Increased from 50 to ensure comprehensive paper pool for final selection
       
-      console.log(`📊 Final papers (Consensus AI ranked): ${finalFilteredPapers.length}`);
+      console.log(`📊 PIPELINE STEP: Consensus AI ranked papers: ${finalFilteredPapers.length} (from ${consensusStyleRanked.length} total)`);
       
       console.log(`📊 Final paper count: ${finalFilteredPapers.length} (from ${deduplicatedResults.length} deduplicated papers)`);
       
-      // SEMANTIC FILTERING: Fix irrelevant citations using biomedical embeddings
-      console.log("🔬 Applying semantic relevance filtering...");
+      // ENHANCED SEMANTIC FILTERING: Use NEW multi-dimensional relevance filter
+      console.log("🔬 PIPELINE STEP: Starting ENHANCED multi-dimensional relevance filtering...");
       
-      // AGGRESSIVE PRE-FILTER: Remove irrelevant papers BEFORE any processing
-      const aggressivelyFilteredPapers = finalFilteredPapers.filter(paper => {
-        const title = (paper.title || '').toLowerCase();
-        const abstract = (paper.abstract || '').toLowerCase();
-        
-        // HARD EXCLUDE: Papers that should NEVER appear for medical queries
-        const hardExclusions = [
-          'electric field effect in atomically thin carbon films',
-          'phq-9', 'hospital anxiety and depression scale', 'ces-d scale',
-          'patient health questionnaire', 'beck depression inventory',
-          'hamilton depression rating', 'center for epidemiologic studies depression',
-          'graphene', 'carbon films', 'valence and conductance bands',
-          'gate voltage', 'semimetal', 'two-dimensional'
-        ];
-        
-        const isHardExcluded = hardExclusions.some(exclusion => 
-          title.includes(exclusion) || abstract.includes(exclusion)
-        );
-        
-        if (isHardExcluded) {
-          console.log(`🚫 Hard excluded: ${paper.title.substring(0, 50)}...`);
-          return false;
-        }
-        
-        // FOR OMEGA-3 QUERIES: Apply specific filtering but ensure we get enough citations
-        if (query.toLowerCase().includes('omega')) {
-          const hasOmega3 = title.includes('omega-3') || title.includes('omega 3') || 
-                           title.includes('fatty acid') || title.includes('pufa') ||
-                           title.includes('epa') || title.includes('dha') ||
-                           abstract.includes('omega-3') || abstract.includes('omega 3') ||
-                           abstract.includes('fatty acid') || abstract.includes('pufa') ||
-                           abstract.includes('epa') || abstract.includes('dha');
-          
-          const hasDepression = title.includes('depression') || title.includes('depressive') ||
-                               title.includes('mood') || title.includes('mental health') ||
-                               abstract.includes('depression') || abstract.includes('depressive') ||
-                               abstract.includes('mood') || abstract.includes('mental health') ||
-                               title.includes('bipolar') || abstract.includes('bipolar');
-          
-          // For omega-3 queries, prefer papers with BOTH terms but allow some flexibility
-          const isMedicalPaper = title.includes('medical') || title.includes('clinical') || 
-                               title.includes('treatment') || title.includes('therapy') ||
-                               abstract.includes('medical') || abstract.includes('clinical') ||
-                               abstract.includes('treatment') || abstract.includes('therapy');
-          
-          // Only exclude if it has none of the relevant terms AND it's not a medical paper
-          if (!hasOmega3 && !hasDepression && !isMedicalPaper) {
-            console.log(`🚫 Missing relevant content: ${paper.title.substring(0, 50)}...`);
-            return false;
-          }
-        }
-        
-        return true;
-      });
+      // Apply the new enhanced relevance filter with medical relevance + query alignment + evidence quality
+      const relevanceAnalysis = EnhancedMedicalRelevanceFilter.filterPapers(
+        finalFilteredPapers, 
+        query, 
+        0.5 // Higher threshold for better quality (was 0.4)
+      );
       
-      console.log(`🔥 Aggressive filtering: ${finalFilteredPapers.length} → ${aggressivelyFilteredPapers.length} (removed irrelevant papers)`);
+      console.log("📊 ENHANCED RELEVANCE ANALYSIS REPORT:");
+      console.log(`🔬 Medical Relevance Avg: ${(relevanceAnalysis.summary.medicalRelevanceAvg * 100).toFixed(1)}%`);
+      console.log(`🎯 Query Alignment Avg: ${(relevanceAnalysis.summary.queryAlignmentAvg * 100).toFixed(1)}%`);
+      console.log(`📚 Evidence Quality Avg: ${(relevanceAnalysis.summary.evidenceQualityAvg * 100).toFixed(1)}%`);
+      console.log(`📊 Overall Relevance Avg: ${(relevanceAnalysis.summary.averageScore * 100).toFixed(1)}%`);
+      
+      const aggressivelyFilteredPapers = relevanceAnalysis.relevant;
+      
+      console.log(`🔥 Enhanced multi-dimensional filtering: ${finalFilteredPapers.length} → ${aggressivelyFilteredPapers.length} (removed ${relevanceAnalysis.irrelevant.length} irrelevant papers)`);
+      
+      // Log some examples of filtered papers for debugging
+      if (relevanceAnalysis.irrelevant.length > 0) {
+        console.log("🚫 Examples of filtered irrelevant papers:");
+        relevanceAnalysis.irrelevant.slice(0, 3).forEach((paper: any, index: number) => {
+          const details = paper.relevanceDetails;
+          console.log(`   ${index + 1}. "${paper.title}"`);
+          console.log(`      📊 Score: ${(paper.relevanceScore * 100).toFixed(1)}% (Medical: ${(details.medicalRelevance * 100).toFixed(1)}%, Query: ${(details.queryAlignment * 100).toFixed(1)}%, Evidence: ${(details.evidenceQuality * 100).toFixed(1)}%)`);
+          console.log(`      💬 Reasons: ${details.reasons.join('; ')}`);
+        });
+      }
+      
+      if (aggressivelyFilteredPapers.length > 0) {
+        console.log("✅ Examples of relevant papers kept:");
+        aggressivelyFilteredPapers.slice(0, 3).forEach((paper: any, index: number) => {
+          console.log(`   ${index + 1}. "${paper.title}" - Score: ${Math.round(paper.relevanceScore * 100)}% - Source: ${paper.source}`);
+        });
+      }
       
       // Then apply semantic filtering to remaining papers
       const cleanedPapers = SemanticMedicalSearchService.filterObviouslyIrrelevant(aggressivelyFilteredPapers);
@@ -1829,13 +2189,52 @@ export async function POST(request: NextRequest) {
       
       // FINAL RANKING: Combine evidence hierarchy with semantic relevance scores
       const finalResults = prioritizedResults
-        .map(paper => ({
-          ...paper,
-          // Ensure final relevance score is properly calculated and used
-          finalRelevanceScore: (paper.semanticScore || 0) * 0.6 + // Semantic similarity
-                              (paper.consensusScore || 0) * 0.3 + // Consensus AI score  
-                              (paper.relevanceScore || 0) * 0.1   // Original relevance
-        }))
+        .map(paper => {
+          // Special handling for zinc/cold queries: trust semantic relevance more heavily
+          const isZincColdQuery = /zinc.*cold|cold.*zinc|zinc.*common.*cold|zinc.*respiratory|zinc.*upper.*respiratory/i.test(query);
+          
+          let finalScore;
+          if (isZincColdQuery) {
+            // For zinc/cold queries, heavily weight semantic relevance (Semantic Scholar's AI)
+            finalScore = (paper.semanticScore || 0) * 0.75 + // Much higher semantic weight
+                        (paper.consensusScore || 0) * 0.2 + // Consensus AI score  
+                        (paper.relevanceScore || 0) * 0.05;  // Minimal original relevance
+          } else {
+            // Standard weighting for other queries
+            finalScore = (paper.semanticScore || 0) * 0.6 + // Semantic similarity
+                        (paper.consensusScore || 0) * 0.3 + // Consensus AI score  
+                        (paper.relevanceScore || 0) * 0.1;   // Original relevance
+          }
+          
+          // CRITICAL: Apply source quality multiplier to prioritize PubMed
+          const sourceMultiplier = getSourceQualityMultiplier(paper.source);
+          finalScore *= sourceMultiplier;
+          
+          if (sourceMultiplier !== 1.0) {
+            console.log(`📊 Source priority applied: ${paper.source} gets ${sourceMultiplier}x multiplier for "${paper.title.substring(0, 40)}..."`);
+          }
+          
+          // Special boost for zinc/cold queries: prioritize recent RCTs and systematic reviews
+          if (isZincColdQuery) {
+            const studyType = inferStudyType(paper.title || '', paper.abstract || '');
+            const pubYear = paper.year || paper.publicationDate || paper.date;
+            const year = pubYear ? (typeof pubYear === 'string' ? parseInt(pubYear) : pubYear) : 0;
+            
+            // Boost recent high-quality studies for zinc/cold queries
+            if (studyType === 'Randomized Controlled Trial' && year >= 2015) {
+              finalScore *= 1.4; // 40% boost for recent RCTs
+            } else if (studyType === 'Systematic Review' && year >= 2018) {
+              finalScore *= 1.5; // 50% boost for recent systematic reviews
+            } else if (studyType === 'Meta-Analysis' && year >= 2016) {
+              finalScore *= 1.6; // 60% boost for recent meta-analyses
+            }
+          }
+          
+          return {
+            ...paper,
+            finalRelevanceScore: finalScore
+          };
+        })
         .sort((a, b) => b.finalRelevanceScore - a.finalRelevanceScore) // Sort by final relevance
         .slice(0, maxResults);
 
@@ -1885,11 +2284,24 @@ export async function POST(request: NextRequest) {
       }        
       
       // FINAL CITATION CLEANUP: Ensure no [object Object] or malformed data with enhanced cleaning
+      console.log(`🧹 CLEANING PROCESS START: Starting with ${finalFilteredPapers.length} finalFilteredPapers`);
+      
       const cleanedCitations = finalFilteredPapers
         .filter(paper => {
           // AGGRESSIVE FILTERING: Remove completely irrelevant papers but keep more relevant ones
           const title = (paper.title || '').toLowerCase();
           const abstract = (paper.abstract || '').toLowerCase();
+          
+          // VALIDATE DATA INTEGRITY: Remove malformed objects and invalid data
+          if (!paper.title || 
+              paper.title === '[object Object]' || 
+              paper.title === 'object Object' ||
+              paper.title.includes('[object') ||
+              paper.title.length < 10 ||
+              typeof paper.title !== 'string') {
+            console.log(`🚫 DATA INTEGRITY: Filtered malformed title: ${paper.title}`);
+            return false;
+          }
           
           // NEVER show these papers for any medical query
           const neverShowPapers = [
@@ -1901,7 +2313,9 @@ export async function POST(request: NextRequest) {
             'gate voltage', 'semimetal', 'two-dimensional',
             // CONTRACEPTIVE DEVICES - NEVER relevant for medical research queries
             'mirena', 'contraceptive', 'birth control', 'iud', 'intrauterine device',
-            'contraception', 'uterine perforation', 'menstrual', 'reproductive health device'
+            'contraception', 'uterine perforation', 'menstrual', 'reproductive health device',
+            // HEART FAILURE STUDIES - Often contaminate other medical queries
+            'emperor-preserved', 'deliver trial', 'empagliflozin', 'dapagliflozin'
           ];
           
           const shouldNeverShow = neverShowPapers.some(exclusion =>
@@ -1919,14 +2333,17 @@ export async function POST(request: NextRequest) {
           
           return hasTitle && hasAuthors;
         })
-        .slice(0, 10) // Always return exactly 10 citations
+        // DON'T slice here - let the guarantee system handle the final count
+        
+      console.log(`🧹 CLEANING PROCESS COMPLETE: ${cleanedCitations.length} papers passed cleaning (from ${finalFilteredPapers.length})`);
         
       // GUARANTEED 10 CITATIONS: Progressive relaxation if needed
       let guaranteedCitations = cleanedCitations.slice(0, 10);
+      console.log(`🎯 GUARANTEE SYSTEM START: ${guaranteedCitations.length}/10 citations from primary filtering (total pool: ${cleanedCitations.length})`);
       
       // If we need more citations, progressively relax filtering
       if (guaranteedCitations.length < 10) {
-        console.log(`⚠️ Only ${guaranteedCitations.length} highly filtered citations, applying progressive fallback...`);
+        console.log(`⚠️ FALLBACK ACTIVATION: Only ${guaranteedCitations.length} highly filtered citations, applying progressive fallback...`);
         
         // FALLBACK LEVEL 1: Get more from finalFilteredPapers with basic quality check
         const additionalCitations1 = finalFilteredPapers
@@ -1940,11 +2357,12 @@ export async function POST(request: NextRequest) {
           })
           .slice(0, 10 - guaranteedCitations.length);
         
-        console.log(`📄 Fallback Level 1: Found ${additionalCitations1.length} additional papers`);
+        console.log(`📄 FALLBACK LEVEL 1: Found ${additionalCitations1.length} additional papers from finalFilteredPapers (pool: ${finalFilteredPapers.length})`);
         guaranteedCitations = [...guaranteedCitations, ...additionalCitations1];
         
         // FALLBACK LEVEL 2: If still not enough, get from deduplicatedResults with medical relevance check
         if (guaranteedCitations.length < 10) {
+          console.log(`📄 FALLBACK LEVEL 2 ACTIVATION: Still need ${10 - guaranteedCitations.length} more citations`);
           const additionalCitations2 = deduplicatedResults
             .filter(paper => !guaranteedCitations.some(existing => existing.title === paper.title))
             .filter(paper => {
@@ -1966,12 +2384,13 @@ export async function POST(request: NextRequest) {
             })
             .slice(0, 10 - guaranteedCitations.length);
           
-          console.log(`📄 Fallback Level 2: Found ${additionalCitations2.length} additional papers`);
+          console.log(`📄 FALLBACK LEVEL 2: Found ${additionalCitations2.length} additional papers from deduplicatedResults (pool: ${deduplicatedResults.length})`);
           guaranteedCitations = [...guaranteedCitations, ...additionalCitations2];
         }
         
         // FALLBACK LEVEL 3: If still not enough, get any reasonable papers from combinedResults
         if (guaranteedCitations.length < 10) {
+          console.log(`📄 FALLBACK LEVEL 3 ACTIVATION: Still need ${10 - guaranteedCitations.length} more citations - using emergency fallback`);
           const additionalCitations3 = combinedResults
             .filter(paper => !guaranteedCitations.some(existing => existing.title === paper.title))
             .filter(paper => {
@@ -1984,12 +2403,56 @@ export async function POST(request: NextRequest) {
             })
             .slice(0, 10 - guaranteedCitations.length);
           
-          console.log(`📄 Fallback Level 3: Found ${additionalCitations3.length} additional papers`);
+          console.log(`📄 FALLBACK LEVEL 3: Found ${additionalCitations3.length} additional papers from combinedResults (pool: ${combinedResults.length})`);
           guaranteedCitations = [...guaranteedCitations, ...additionalCitations3];
         }
+        
+        // FALLBACK LEVEL 4: Enhanced orchestrator for difficult queries
+        if (guaranteedCitations.length < 5) {
+          console.log(`📄 FALLBACK LEVEL 4 ACTIVATION: Using enhanced orchestrator for difficult query - only ${guaranteedCitations.length} citations found so far`);
+          
+          try {
+            const orchestrator = new EnhancedResearchOrchestrator();
+            const intelligentResults = await orchestrator.executeIntelligentSearch(query, 10 - guaranteedCitations.length);
+            
+            console.log(`🎯 Enhanced orchestrator used strategy: ${intelligentResults.strategy} (Level ${intelligentResults.fallbackLevel}) with ${intelligentResults.relevanceScore}% relevance`);
+            
+            const orchestratorCitations = intelligentResults.papers
+              .filter(paper => !guaranteedCitations.some(existing => existing.title === paper.title))
+              .map(paper => ({
+                id: paper.pmid || `orch-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                title: cleanupText(paper.title),
+                authors: Array.isArray(paper.authors) ? paper.authors : [paper.authors].filter(Boolean),
+                journal: cleanupText(paper.journal),
+                year: typeof paper.year === 'string' ? parseInt(paper.year) : paper.year || new Date().getFullYear(),
+                pmid: paper.pmid,
+                doi: paper.doi,
+                url: paper.url,
+                abstract: cleanupText(paper.abstract),
+                studyType: 'Research Article',
+                confidenceScore: Math.round(intelligentResults.relevanceScore),
+                evidenceLevel: intelligentResults.relevanceScore >= 80 ? 'Level 2 (High) Evidence' : 
+                              intelligentResults.relevanceScore >= 60 ? 'Level 3 (Moderate) Evidence' : 
+                              'Level 4 (Low) Evidence',
+                source: paper.source || 'Enhanced Search',
+                meshTerms: []
+              }));
+            
+            console.log(`📄 FALLBACK LEVEL 4: Found ${orchestratorCitations.length} additional papers from enhanced orchestrator`);
+            guaranteedCitations = [...guaranteedCitations, ...orchestratorCitations];
+            
+          } catch (error) {
+            console.error("❌ Enhanced orchestrator fallback failed:", error);
+          }
+        }
+        
+        console.log(`🎯 GUARANTEE SYSTEM COMPLETE: Final count ${guaranteedCitations.length}/10 citations after all fallbacks`);
+      } else {
+        console.log(`✅ GUARANTEE SYSTEM SKIP: Primary filtering provided sufficient ${guaranteedCitations.length} citations`);
       }
       
       // Final cleanup: Ensure exactly 10 citations with proper author formatting
+      console.log(`🎯 FINAL CLEANUP: Preparing ${guaranteedCitations.length} citations for delivery`);
       const finalCitations = guaranteedCitations.slice(0, 10).map(paper => {
             // Apply same author cleaning as above
             let cleanAuthors: string[] = [];
@@ -2049,6 +2512,57 @@ export async function POST(request: NextRequest) {
               }
             }
             
+            // ENHANCED RELEVANCE SCORING AND TAGGING SYSTEM
+            const title = (paper.title || '').toLowerCase();
+            const abstract = (paper.abstract || '').toLowerCase();
+            const combinedText = `${title} ${abstract}`;
+            
+            // Calculate query-specific relevance score
+            let relevanceCategory = 'Highly Relevant';
+            let relevanceScore = paper.semanticScore || paper.relevanceScore || paper.consensusScore || 0;
+            let relevanceWarning = '';
+            
+            if (query.toLowerCase().includes('melatonin') && query.toLowerCase().includes('sleep')) {
+              // Core melatonin + sleep terms
+              const coreTerms = ['melatonin', 'sleep', 'insomnia', 'circadian'];
+              const coreTermCount = coreTerms.filter(term => combinedText.includes(term)).length;
+              
+              // Population relevance (older adults)
+              const populationMatch = query.toLowerCase().includes('older') && 
+                                    (combinedText.includes('older') || combinedText.includes('elderly') || 
+                                     combinedText.includes('aged') || combinedText.includes('geriatric'));
+              
+              // Off-topic indicators for melatonin/sleep queries
+              const offTopicIndicators = [
+                'alzheimer', 'dementia', 'heart failure', 'cardiovascular drug',
+                'empagliflozin', 'diabetes medication', 'children', 'pediatric', 'adolescent',
+                'traumatic brain injury', 'shift work disorder', 'jet lag'
+              ];
+              
+              const offTopicCount = offTopicIndicators.filter(indicator => combinedText.includes(indicator)).length;
+              
+              // Determine relevance category and warnings
+              if (coreTermCount >= 2 && populationMatch && offTopicCount === 0) {
+                relevanceCategory = 'Highly Relevant';
+                relevanceScore *= 1.0;
+              } else if (coreTermCount >= 2 && offTopicCount === 0) {
+                relevanceCategory = 'Moderately Relevant';
+                relevanceScore *= 0.8;
+              } else if (coreTermCount >= 1 && offTopicCount === 0) {
+                relevanceCategory = 'Weakly Relevant';
+                relevanceScore *= 0.6;
+                relevanceWarning = 'Limited direct relevance to specific query parameters';
+              } else if (offTopicCount > 0) {
+                relevanceCategory = 'Off-topic';
+                relevanceScore *= 0.3;
+                relevanceWarning = 'Off-topic – excluded from synthesis';
+              } else {
+                relevanceCategory = 'Poorly Relevant';
+                relevanceScore *= 0.4;
+                relevanceWarning = 'Tangential relevance to query';
+              }
+            }
+            
             return {
               title: paper.title || 'Untitled Research Paper',
               authors: cleanAuthors,
@@ -2062,15 +2576,32 @@ export async function POST(request: NextRequest) {
               studyType: paper.studyType,
               evidenceLevel: paper.evidenceLevel,
               confidenceScore: paper.confidenceScore || 75,
-              relevanceScore: paper.semanticScore || paper.relevanceScore || paper.consensusScore || 0
+              relevanceScore: relevanceScore,
+              relevanceCategory: relevanceCategory,
+              relevanceWarning: relevanceWarning
             };
       });
       
       console.log(`✅ GUARANTEED Final citation count: ${finalCitations.length}`);
       
+      // DEBUGGING: Log guarantee system details
+      if (finalCitations.length < 10) {
+        console.error(`🚨 CITATION GUARANTEE FAILURE: Only ${finalCitations.length}/10 citations provided!`);
+        console.error("📊 Guarantee System Debug:", {
+          cleanedCitationsCount: cleanedCitations.length,
+          guaranteedCitationsCount: guaranteedCitations.length,
+          finalCitationsCount: finalCitations.length,
+          requestedMaxResults,
+          fallbackLevelsActivated: guaranteedCitations.length < cleanedCitations.length ? 'Yes' : 'No'
+        });
+      } else {
+        console.log(`✅ CITATION GUARANTEE SUCCESS: Provided exactly ${finalCitations.length} citations`);
+      }
+      
       // Return different formats based on the API caller
       if (isLegacyChatCall) {
         // Legacy format for chat API
+        console.log(`🔄 Returning LEGACY format with ${finalCitations.length} papers for chat API`);
         return NextResponse.json({
           papers: finalCitations,
           totalFound: finalCitations.length,
@@ -2078,6 +2609,7 @@ export async function POST(request: NextRequest) {
         });
       } else {
         // New format for direct API calls
+        console.log(`🔄 Returning NEW format with ${finalCitations.length} citations for direct API`);
         return NextResponse.json({
           response,
           citations: finalCitations,

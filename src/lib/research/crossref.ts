@@ -61,12 +61,12 @@ export interface CrossRefSearchParams {
 
 class CrossRefAPI {
   private baseURL = 'https://api.crossref.org';
-  private userAgent = 'MedGPT-Scholar/1.0 (https://medgpt-scholar.com; mailto:contact@medgpt-scholar.com)';
+  private userAgent = 'CliniSynth/1.0 (https://clinisynth.com; mailto:contact@clinisynth.com)';
 
   constructor(private email?: string) {
     // CrossRef recommends including contact email in User-Agent for better service
     if (email) {
-      this.userAgent = `MedGPT-Scholar/1.0 (https://medgpt-scholar.com; mailto:${email})`;
+      this.userAgent = `CliniSynth/1.0 (https://clinisynth.com; mailto:${email})`;
     }
   }
 

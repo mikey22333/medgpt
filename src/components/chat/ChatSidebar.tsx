@@ -248,20 +248,26 @@ export function ChatSidebar({
                           <button
                             onClick={() => onSessionSelect(conversation.id, conversation.mode)}
                             disabled={isDeleting}
-                            className="flex-1 flex items-center gap-2 min-w-0"
+                            className="flex-1 flex items-center gap-2 min-w-0 overflow-hidden"
                           >
                             <Icon className={cn(
                               "h-3 w-3 flex-shrink-0",
                               currentSessionId === conversation.id ? "text-blue-600" : "text-gray-400"
                             )} />
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium truncate text-xs">
-                                {conversation.title}
+                              <div className="font-medium text-xs leading-tight overflow-hidden">
+                                <span 
+                                  className="block truncate max-w-full" 
+                                  title={conversation.title}
+                                  style={{ maxWidth: '200px' }}
+                                >
+                                  {conversation.title.length > 50 ? `${conversation.title.substring(0, 50)}...` : conversation.title}
+                                </span>
                               </div>
-                              <div className="text-xs text-gray-400 truncate flex items-center gap-1">
-                                <span className="capitalize">{conversation.mode}</span>
-                                <span>•</span>
-                                <span>{new Date(conversation.last_message_at).toLocaleDateString()}</span>
+                              <div className="text-xs text-gray-400 flex items-center gap-1 overflow-hidden">
+                                <span className="capitalize truncate">{conversation.mode}</span>
+                                <span className="flex-shrink-0">•</span>
+                                <span className="truncate">{new Date(conversation.last_message_at).toLocaleDateString()}</span>
                               </div>
                             </div>
                           </button>

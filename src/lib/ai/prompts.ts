@@ -37,7 +37,46 @@ export function createEnhancedMedicalPrompt(context: EnhancedMedicalPromptContex
   const calculateEvidenceConfidence = (papers: Citation[]): number => {
     if (papers.length === 0) return 20; // Very low confidence with no evidence
     
-    let confidence = 40; // Base confidence
+    // Check for irrelevant papers (major confidence penalty)
+    const irrelevantPapers = papers.filter(p => {
+      const title = p.title.toLowerCase();
+      const journal = (p.journal || '').toLowerCase();
+      const abstract = (p.abstract || '').toLowerCase();
+      
+      // Check for irrelevant terms that indicate off-topic papers
+      const irrelevantTerms = [
+        'testicular rupture', 'endocannabinoid system', 'empagliflozin', 'dapagliflozin',
+        'farxiga', 'contraceptive', 'mirena', 'bibliometric', 'citation analysis',
+        'business', 'marketing', 'financial', 'economics', 'social media',
+        'pure mathematics', 'theoretical physics', 'computer programming'
+      ];
+      
+      const isIrrelevant = irrelevantTerms.some(term => 
+        title.includes(term) || abstract.includes(term)
+      );
+      
+      // Also check if it's a drug label when asking about clinical topics
+      const isDrugLabel = journal.includes('fda drug label') && 
+        !userQuery.toLowerCase().includes('drug') && 
+        !userQuery.toLowerCase().includes('medication');
+      
+      return isIrrelevant || isDrugLabel;
+    }).length;
+    
+    // Calculate irrelevance ratio
+    const irrelevanceRatio = irrelevantPapers / papers.length;
+    
+    // If more than 50% of papers are irrelevant, severely penalize confidence
+    if (irrelevanceRatio > 0.5) {
+      return Math.max(15, 30 - (irrelevanceRatio * 40)); // Very low confidence
+    }
+    
+    // If 25-50% are irrelevant, moderate penalty
+    if (irrelevanceRatio > 0.25) {
+      return Math.max(25, 45 - (irrelevanceRatio * 30)); // Low confidence
+    }
+    
+    let confidence = 40; // Base confidence for relevant papers
     
     // High-quality evidence boost
     const highQuality = papers.filter(p => 
@@ -63,7 +102,10 @@ export function createEnhancedMedicalPrompt(context: EnhancedMedicalPromptContex
     const highConfidencePapers = papers.filter(p => (p.confidenceScore || 85) >= 85).length;
     confidence += (highConfidencePapers / papers.length) * 15;
     
-    return Math.min(95, Math.max(20, Math.round(confidence)));
+    // Apply irrelevance penalty to final score
+    confidence = confidence * (1 - (irrelevanceRatio * 0.5));
+    
+    return Math.min(95, Math.max(15, Math.round(confidence)));
   };
 
   const evidenceConfidence = calculateEvidenceConfidence(researchPapers);

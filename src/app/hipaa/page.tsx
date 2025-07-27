@@ -10,7 +10,7 @@ export default function HipaaPage() {
         <header className="space-y-4">
           <h1 className="text-4xl font-bold">HIPAA Compliance</h1>
           <p className="text-lg text-slate-600">
-            MedGPT Scholar is built with U.S. HIPAA principles in mind. While we
+            CliniSynth is built with U.S. HIPAA principles in mind. While we
             are not currently classified as a covered entity, we implement
             industry-standard safeguards to help users handle Protected Health
             Information (PHI) responsibly.
@@ -34,7 +34,7 @@ export default function HipaaPage() {
             <Shield className="w-5 h-5" /> Our Commitment
           </h2>
           <p>
-            We designed MedGPT Scholar to respect the confidentiality of patient
+            We designed CliniSynth to respect the confidentiality of patient
             data. The platform can be used as part of HIPAA-compliant workflows
             and helps healthcare professionals avoid exposing identifiable PHI.
           </p>
@@ -69,7 +69,7 @@ export default function HipaaPage() {
             <ShieldCheck className="w-5 h-5" /> Disclaimer
           </h2>
           <p>
-            MedGPT Scholar itself is not a covered entity. Users are encouraged
+            CliniSynth itself is not a covered entity. Users are encouraged
             to avoid submitting patient-identifiable information unless they are
             authorized and have obtained proper consent.
           </p>

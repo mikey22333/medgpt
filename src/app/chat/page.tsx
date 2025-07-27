@@ -143,7 +143,7 @@ export default function ChatPage() {
               <Sparkles className="h-6 w-6 animate-pulse" />
             </div>
             <div className="text-center">
-              <h2 className="text-lg font-semibold text-gray-900">MedGPT Scholar</h2>
+              <h2 className="text-lg font-semibold text-gray-900">CliniSynth</h2>
               <p className="text-sm text-gray-600">Initializing your medical research assistant...</p>
             </div>
           </div>

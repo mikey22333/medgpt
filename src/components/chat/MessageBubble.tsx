@@ -14,8 +14,11 @@ import { MedicalFlowchart } from "../medical/MedicalFlowchart";
 import { ProbabilityChart } from "../medical/ProbabilityChart";
 import { ResearchGapAnalysis } from "../medical/ResearchGapAnalysis";
 import { MissingLandmarkTrials } from "../medical/MissingLandmarkTrials";
+import { PDFExport } from "@/components/ui/PDFExport";
+import { useQueryLimit } from "@/hooks/useQueryLimit";
 import { cn } from "@/lib/utils";
 import { User, Bot } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -28,6 +31,8 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ message, mode = 'research', allMessages = [], showReasoning = true }: MessageBubbleProps) {
   const isUser = message.role === "user";
+  const messageId = `message-${message.id || Date.now()}`;
+  const { isProUser, loading: limitLoading } = useQueryLimit();
 
   // Find the user query that preceded this assistant response
   const getUserQueryForResponse = (): string | undefined => {
@@ -74,25 +79,22 @@ export function MessageBubble({ message, mode = 'research', allMessages = [], sh
         </div>
       ) : (
         /* AI Message - Full width container */
-        <div className="w-full max-w-4xl mx-auto bg-white border border-gray-200 rounded-2xl rounded-bl-md shadow-sm hover:shadow-md transition-shadow duration-200">
-          {/* Message Header */}
-          <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-100 bg-gray-50/50">
-            <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shadow-sm bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
-              <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center">
-                <div className="w-3 h-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-sm"></div>
+        <div className="w-full max-w-4xl mx-auto">
+          <div id={messageId} className="bg-white border border-gray-200 rounded-2xl rounded-bl-md shadow-sm hover:shadow-md transition-shadow duration-200">
+            {/* Message Header */}
+            <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-100 bg-gray-50/50">
+              <Logo className="shadow-sm" />
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-xs sm:text-sm text-gray-900">CliniSynth</div>
+                <div className="text-xs text-gray-500 mt-0.5 hidden sm:block">AI Medical Research Assistant</div>
+              </div>
+              <div className="text-xs text-gray-400 flex-shrink-0">
+                {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-xs sm:text-sm text-gray-900">MedGPT Scholar</div>
-              <div className="text-xs text-gray-500 mt-0.5 hidden sm:block">AI Medical Research Assistant</div>
-            </div>
-            <div className="text-xs text-gray-400 flex-shrink-0">
-              {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </div>
-          </div>
 
-          {/* Dynamic Confidence Badge */}
-          {(() => {
+          {/* Dynamic Confidence Badge - Research mode only */}
+          {mode === 'research' && (() => {
             // First check if there's a confidence score from multi-agent system
             const multiAgentConfidence = message.confidence;
             
@@ -134,16 +136,31 @@ export function MessageBubble({ message, mode = 'research', allMessages = [], sh
           {/* AI Message Content */}
           <div className="px-3 sm:px-6 py-4 sm:py-5 leading-relaxed text-gray-800">
             {/* Quick Summary for Doctor Mode */}
-            {mode === 'doctor' && (
+            {false && mode === 'doctor' && (
               <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 rounded-xl shadow-sm">
                 <div className="flex items-start gap-2 sm:gap-3">
                   <div className="flex-shrink-0 w-6 h-6 sm:w-8 sm:h-8 bg-teal-500 rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-xs sm:text-sm">📋</span>
+                    <span className="text-white font-bold text-xs sm:text-sm">�‍⚕️</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-teal-900 mb-1 sm:mb-2 text-xs sm:text-sm">Quick Summary</h3>
+                    <h3 className="font-semibold text-teal-900 mb-1 sm:mb-2 text-xs sm:text-sm">Medical Assessment</h3>
                     <div className="text-xs sm:text-sm text-teal-800 leading-relaxed">
-                      {message.content.split('\n').slice(0, 3).join(' ').substring(0, 200)}...
+                      {(() => {
+                        // Extract a clean medical summary without research metadata
+                        let summary = message.content
+                          .replace(/Low Confidence \(\d+%\)|Moderate Confidence \(\d+%\)|High Confidence \(\d+%\)/gi, '')
+                          .replace(/Step \d+:\s*/g, '')
+                          .replace(/##\s*[📊🔍]\s*Confidence Assessment[\s\S]*?(?=##|$)/gi, '')
+                          .replace(/##\s*/g, '')
+                          .replace(/\*{2,4}/g, '')
+                          .split('\n')
+                          .filter(line => line.trim() && !line.includes('📋') && !line.includes('🔍') && !line.includes('📊'))
+                          .slice(0, 2)
+                          .join(' ')
+                          .substring(0, 200);
+                        
+                        return summary.trim() + (summary.length >= 200 ? '...' : '');
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -230,22 +247,96 @@ export function MessageBubble({ message, mode = 'research', allMessages = [], sh
                 )
               }}
               >
-                {message.content}
+                {(() => {
+                  let cleanedContent = message.content;
+                  
+                  // Doctor mode: Add temperature validation and comprehensive content cleaning
+                  if (mode === 'doctor') {
+                    // Temperature validation - check for unrealistic values
+                    const tempValidation = (() => {
+                      const tempMatches = cleanedContent.match(/(\d+)\s*degree[s]?/i);
+                      if (tempMatches) {
+                        const temp = parseInt(tempMatches[1]);
+                        if (temp >= 110) {
+                          return {
+                            isUnrealistic: true,
+                            message: `⚠️ **Temperature Clarification Needed**: You mentioned ${temp} degrees. Did you mean ${temp - 9}°F (a high fever) instead of ${temp}°F? Temperatures above 107°F are life-threatening emergencies.`
+                          };
+                        } else if (temp <= 95) {
+                          return {
+                            isUnrealistic: true,
+                            message: `⚠️ **Temperature Clarification Needed**: You mentioned ${temp} degrees. This would indicate hypothermia (dangerously low body temperature). Did you mean ${temp + 6}°F instead?`
+                          };
+                        }
+                      }
+                      return { isUnrealistic: false };
+                    })();
+                    
+                    // If unrealistic temperature, prepend validation message
+                    if (tempValidation.isUnrealistic) {
+                      cleanedContent = tempValidation.message + '\n\n' + cleanedContent;
+                    }
+                    
+                    // Comprehensive content cleaning for natural doctor responses
+                    cleanedContent = cleanedContent
+                      // Remove confidence indicators
+                      .replace(/Low Confidence \(\d+%\)|Moderate Confidence \(\d+%\)|High Confidence \(\d+%\)/gi, '')
+                      // Remove confidence assessment sections entirely
+                      .replace(/##\s*[📊🔍]\s*Confidence Assessment[\s\S]*?(?=##|$)/gi, '')
+                      .replace(/�\s*Confidence Assessment[\s\S]*?(?=�|##|$)/gi, '')
+                      // Remove step indicators (all variations)
+                      .replace(/^Step \d+:\s*/gm, '')
+                      .replace(/\bStep \d+:\s*/g, '')
+                      .replace(/Step \d+:/g, '')
+                      // Remove research metadata sections  
+                      .replace(/📋\s*Research Summary[\s\S]*?(?=##|$)/gi, '')
+                      .replace(/🔍\s*Research Query[\s\S]*?(?=##|$)/gi, '')
+                      .replace(/📊\s*Evidence Level[\s\S]*?(?=##|$)/gi, '')
+                      .replace(/📚\s*Citations Found[\s\S]*?(?=##|$)/gi, '')
+                      .replace(/🗄️\s*Databases Used[\s\S]*?(?=##|$)/gi, '')
+                      // Remove assessment sections with bullet points
+                      .replace(/�\s*Possible Causes[\s\S]*?(?=�|##|$)/gi, '')
+                      .replace(/�\s*Follow-up Timeline[\s\S]*?(?=�|##|$)/gi, '')
+                      .replace(/�\s*Seek Immediate Medical Attention[\s\S]*?(?=�|##|$)/gi, '')
+                      .replace(/�\s*Your Care Plan Pathway[\s\S]*?(?=�|##|$)/gi, '')
+                      .replace(/📊\s*Likelihood Assessment[\s\S]*?(?=�|##|$)/gi, '')
+                      // Remove percentage indicators in parentheses  
+                      .replace(/\([0-9]+%\)/g, '')
+                      // Remove asterisks used for AI emphasis
+                      .replace(/\*{2,4}/g, '')
+                      // Clean up emoji headers while preserving content
+                      .replace(/##\s*[📋🔍📊📚🗄️📅🧪🎯⚖️🕒✅🚨🧭🔥💊⏰🆘]\s*/g, '## ')
+                      // Remove standalone emojis at line starts
+                      .replace(/^[📋🔍📊📚🗄️📅🧪🎯⚖️🕒✅🚨🧭🔥💊⏰🆘�]\s*/gm, '')
+                      // Remove bullet point emojis and structured sections
+                      .replace(/^�\s*/gm, '')
+                      .replace(/\n�\s*/g, '\n')
+                      // Clean up orphaned headers
+                      .replace(/##\s*##\s*/g, '## ')
+                      .replace(/^##\s*$/gm, '')
+                      // Clean up multiple line breaks
+                      .replace(/\n{3,}/g, '\n\n')
+                      .trim();
+                  }
+                  
+                  return cleanedContent;
+                })()}
               </ReactMarkdown>
             </div>
           </div>
 
-          {/* Enhanced Medical Components */}
-          <div className="px-3 sm:px-6 space-y-4">
-            <GuidelineQuote content={message.content} />
-            <LandmarkTrial content={message.content} />
-          </div>
+          {/* Enhanced Medical Components - Research mode only */}
+          {mode === 'research' && (
+            <div className="px-3 sm:px-6 space-y-4">
+              <GuidelineQuote content={message.content} />
+              <LandmarkTrial content={message.content} />
+            </div>
+          )}
 
           {/* Patient-Friendly Visual Components - Doctor mode only */}
           {mode === 'doctor' && (
             <div className="px-3 sm:px-6 space-y-4">
               <ProbabilityChart content={message.content} />
-              <MedicalFlowchart content={message.content} patientFriendly={true} />
             </div>
           )}
 
@@ -361,6 +452,32 @@ export function MessageBubble({ message, mode = 'research', allMessages = [], sh
               </div>
             </div>
           )}
+          
+          {/* PDF Export Button */}
+          <div className="px-3 sm:px-6 py-3 border-t border-gray-100 bg-gray-50/30 pdf-exclude">
+            <div className="flex justify-end">
+              {!limitLoading && (
+                isProUser ? (
+                  <PDFExport 
+                    contentId={messageId}
+                    fileName={`clinisynth-response-${userQuery?.slice(0, 30).replace(/[^a-zA-Z0-9]/g, '-') || 'response'}`}
+                    className="opacity-70 hover:opacity-100 transition-opacity"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>PDF export available in Pro plan</span>
+                    <a 
+                      href="/dashboard" 
+                      className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                    >
+                      Upgrade to Pro
+                    </a>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+          </div>
         </div>
       )}
     </div>

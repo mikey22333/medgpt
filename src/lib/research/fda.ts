@@ -91,7 +91,7 @@ export class FDAClient {
       
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'MedGPT-Scholar/1.0 (medical-research)',
+          'User-Agent': 'CliniSynth/1.0 (medical-research)',
         },
       });
 
@@ -125,7 +125,7 @@ export class FDAClient {
       
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'MedGPT-Scholar/1.0 (medical-research)',
+          'User-Agent': 'CliniSynth/1.0 (medical-research)',
         },
       });
 
@@ -159,7 +159,7 @@ export class FDAClient {
       
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'MedGPT-Scholar/1.0 (medical-research)',
+          'User-Agent': 'CliniSynth/1.0 (medical-research)',
         },
       });
 

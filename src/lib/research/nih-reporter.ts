@@ -62,7 +62,7 @@ export interface NIHSearchParams {
 
 export class NIHReporterClient {
   private baseUrl = 'https://api.reporter.nih.gov/v2';
-  private userAgent = 'MedGPT-Scholar/1.0';
+  private userAgent = 'CliniSynth/1.0';
 
   constructor() {
     // NIH RePORTER API doesn't require API key for public access

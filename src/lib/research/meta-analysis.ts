@@ -203,7 +203,7 @@ export class MetaAnalysisService {
   /**
    * Get detailed information about a specific meta-analysis by ID
    */
-  async getMetaAnalysisById(id: string, includeSummary: boolean = true): Promise<MetaAnalysis | null> {
+  async getMetaAnalysisById(id: string, includeSummary: boolean = true): Promise<EuropePMCMetaAnalysis | null> {
     try {
       const article = await this.europePMC.getArticleById(id, true);
       if (!article) {
@@ -211,17 +211,17 @@ export class MetaAnalysisService {
       }
 
       // Convert to MetaAnalysis format
-      const metaAnalysis = this.convertToMetaAnalysis(article);
+      const metaAnalysis = article as EuropePMCMetaAnalysis;
       
       // Perform quality assessment
-      metaAnalysis.qualityAssessment = this.assessMetaAnalysisQuality(metaAnalysis);
+      const assessedMetaAnalysis = await this.assessMetaAnalysisQuality(metaAnalysis);
       
       // Generate summary if requested
       if (includeSummary) {
-        metaAnalysis.summary = this.summaryService.generateSummary(metaAnalysis);
+        assessedMetaAnalysis.summary = this.summaryService.generateSummary(assessedMetaAnalysis);
       }
       
-      return metaAnalysis;
+      return assessedMetaAnalysis;
     } catch (error) {
       console.error('Error getting meta-analysis by ID:', error);
       return null;
@@ -409,7 +409,7 @@ export class MetaAnalysisService {
    * This is a simplified implementation - a full GRADE assessment would require
    * more detailed analysis of the study methodology
    */
-  private calculateGRADE(metaAnalysis: EuropePMCAnalysis): {
+  private calculateGRADE(metaAnalysis: EuropePMCMetaAnalysis): {
     rating: 'high' | 'moderate' | 'low' | 'very_low';
     reasons: string[];
   } {
@@ -419,19 +419,19 @@ export class MetaAnalysisService {
     let rating: 'high' | 'moderate' | 'low' | 'very_low' = 'high';
     
     // Check for downgrade factors
-    if (metaAnalysis.outcomeMeasures?.some(m => m.i2 && m.i2 > 50)) {
+    if (metaAnalysis.outcomeMeasures?.some((m: any) => m.i2 && m.i2 > 50)) {
       rating = 'moderate';
       reasons.push('Substantial heterogeneity (I² > 50%)');
     }
     
-    if (metaAnalysis.outcomeMeasures?.some(m => m.studies && m.studies < 10)) {
+    if (metaAnalysis.outcomeMeasures?.some((m: any) => m.studies && m.studies < 10)) {
       if (rating === 'high') rating = 'moderate';
       else if (rating === 'moderate') rating = 'low';
       reasons.push('Fewer than 10 studies for some outcomes');
     }
     
     // Check for upgrade factors (e.g., large effect size, dose-response gradient)
-    const hasLargeEffect = metaAnalysis.outcomeMeasures?.some(m => 
+    const hasLargeEffect = metaAnalysis.outcomeMeasures?.some((m: any) => 
       (m.measure === 'RR' || m.measure === 'OR') && 
       ((m.value < 0.5 || m.value > 2) && 
        m.ciLower && m.ciUpper && 

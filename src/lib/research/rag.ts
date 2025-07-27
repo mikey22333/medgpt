@@ -196,7 +196,7 @@ export class RAGPipeline {
       title: paper.title,
       authors: Array.isArray(paper.authors) ? paper.authors : [paper.authors].filter(Boolean),
       journal: paper.journal || "Unknown Journal",
-      year: paper.publishedDate ? new Date(paper.publishedDate).getFullYear() : new Date().getFullYear(),
+      year: paper.publishedDate ? new Date(paper.publishedDate).getFullYear().toString() : new Date().getFullYear().toString(),
       pmid: paper.pmid,
       doi: paper.doi,
       url: paper.url || `https://pubmed.ncbi.nlm.nih.gov/${paper.pmid}/`,
@@ -222,7 +222,7 @@ export class RAGPipeline {
       title: paper.title,
       authors: paper.authors ? paper.authors.map((author) => author.name) : [],
       journal: paper.venue || "Unknown Venue",
-      year: paper.year || new Date().getFullYear(),
+      year: paper.year ? paper.year.toString() : new Date().getFullYear().toString(),
       doi: paper.doi,
       url: paper.url || `https://www.semanticscholar.org/paper/${paper.paperId}`,
       abstract: paper.abstract || "Abstract not available",
@@ -246,7 +246,7 @@ export class RAGPipeline {
       title: paper.title,
       authors: Array.isArray(paper.authors) ? paper.authors : [],
       journal: paper.journal || "Unknown Journal",
-      year: year,
+      year: year.toString(),
       pmid: paper.pmid,
       pmcid: paper.pmcid,
       doi: paper.doi,
@@ -266,11 +266,11 @@ export class RAGPipeline {
     const evidenceLevel = 'High'; // FDA sources are authoritative
 
     return {
-      id: paper.pmid,
+      id: paper.pmid || paper.id || `fda-${Date.now()}`,
       title: paper.title,
       authors: paper.authors,
       journal: paper.journal,
-      year: parseInt(paper.year) || new Date().getFullYear(),
+      year: (parseInt(paper.year) || new Date().getFullYear()).toString(),
       pmid: paper.pmid,
       doi: paper.doi,
       url: paper.url,
@@ -278,7 +278,7 @@ export class RAGPipeline {
       studyType,
       confidenceScore,
       evidenceLevel,
-      source: paper.source,
+      source: paper.source as Citation['source'] || 'Fallback',
       guidelineOrg: 'FDA',
       isGuideline: studyType === 'FDA Label'
     };
@@ -339,12 +339,15 @@ export class RAGPipeline {
     // Recency scoring (more recent = higher score)
     const currentYear = new Date().getFullYear();
     const paperYear = typeof paper.year === 'string' ? parseInt(paper.year) : paper.year;
-    const yearsOld = currentYear - paperYear;
     
-    if (yearsOld <= 2) score += 15;
-    else if (yearsOld <= 5) score += 10;
-    else if (yearsOld <= 10) score += 5;
-    else score -= 5;
+    if (!isNaN(paperYear)) {
+      const yearsOld = currentYear - paperYear;
+      
+      if (yearsOld <= 2) score += 15;
+      else if (yearsOld <= 5) score += 10;
+      else if (yearsOld <= 10) score += 5;
+      else score -= 5;
+    }
     
     // Journal quality (simplified - could be enhanced with impact factors)
     const highImpactJournals = [
@@ -367,12 +370,15 @@ export class RAGPipeline {
     
     const currentYear = new Date().getFullYear();
     const paperYear = parseInt(paper.year);
-    const yearsOld = currentYear - paperYear;
     
-    // Recent FDA data is more relevant
-    if (yearsOld <= 1) score += 10;
-    else if (yearsOld <= 3) score += 5;
-    else if (yearsOld > 10) score -= 10;
+    if (!isNaN(paperYear)) {
+      const yearsOld = currentYear - paperYear;
+      
+      // Recent FDA data is more relevant
+      if (yearsOld <= 1) score += 10;
+      else if (yearsOld <= 3) score += 5;
+      else if (yearsOld > 10) score -= 10;
+    }
     
     return Math.max(0, Math.min(100, score));
   }
@@ -440,9 +446,15 @@ export class RAGPipeline {
       return "No relevant research papers found for this query.";
     }
 
-    const recentPapers = citations.filter(c => c.year >= new Date().getFullYear() - 5);
+    const recentPapers = citations.filter(c => {
+      const citationYear = parseInt(c.year);
+      return !isNaN(citationYear) && citationYear >= new Date().getFullYear() - 5;
+    });
     const totalPapers = citations.length;
-    const avgYear = Math.round(citations.reduce((sum, c) => sum + c.year, 0) / citations.length);
+    const avgYear = Math.round(citations.reduce((sum, c) => {
+      const year = parseInt(c.year);
+      return sum + (isNaN(year) ? new Date().getFullYear() : year);
+    }, 0) / citations.length);
 
     let summary = `Found ${totalPapers} relevant research paper${totalPapers > 1 ? 's' : ''}`;
     

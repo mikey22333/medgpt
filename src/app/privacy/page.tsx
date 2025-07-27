@@ -1,7 +1,8 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
-import { Brain, Shield, Lock, Eye, Database, Users } from "lucide-react";
+import { Shield, Lock, Eye, Database, Users } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 import Link from "next/link";
 
 export default function PrivacyPolicy() {
@@ -12,10 +13,8 @@ export default function PrivacyPolicy() {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 medical-gradient rounded-lg flex items-center justify-center">
-                <Brain className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-xl font-bold text-slate-900">MedGPT Scholar</span>
+              <Logo />
+              <span className="text-xl font-bold text-slate-900">CliniSynth</span>
             </Link>
             <Link 
               href="/" 
@@ -184,7 +183,7 @@ export default function PrivacyPolicy() {
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <h3 className="font-semibold text-green-900 mb-2">Our HIPAA Commitment</h3>
                 <p className="text-green-800 text-sm mb-2">
-                  While MedGPT Scholar is designed with healthcare privacy in mind, it is not intended for processing PHI.
+                  While CliniSynth is designed with healthcare privacy in mind, it is not intended for processing PHI.
                 </p>
                 <ul className="text-green-800 space-y-1 text-sm">
                   <li>• We implement technical safeguards for data protection</li>
@@ -197,7 +196,7 @@ export default function PrivacyPolicy() {
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <h3 className="font-semibold text-amber-900 mb-2">User Responsibility</h3>
                 <p className="text-amber-800 text-sm">
-                  Users must NOT input protected health information (PHI) including patient names, dates of birth, social security numbers, or other identifiers into MedGPT Scholar.
+                  Users must NOT input protected health information (PHI) including patient names, dates of birth, social security numbers, or other identifiers into CliniSynth.
                 </p>
               </div>
             </div>
@@ -241,7 +240,7 @@ export default function PrivacyPolicy() {
             <h2 className="text-2xl font-semibold text-slate-900 mb-4">8. International Data Transfers</h2>
             <div className="space-y-3 text-slate-700">
               <p>
-                MedGPT Scholar operates globally. Your data may be processed in countries where we operate, including the United States and European Union. We ensure appropriate safeguards are in place for international transfers.
+                CliniSynth operates globally. Your data may be processed in countries where we operate, including the United States and European Union. We ensure appropriate safeguards are in place for international transfers.
               </p>
               <p><strong>EU Users:</strong> We comply with GDPR requirements and use Standard Contractual Clauses for data transfers.</p>
             </div>
@@ -271,8 +270,8 @@ export default function PrivacyPolicy() {
             <div className="space-y-3 text-slate-700">
               <p>For privacy-related questions, concerns, or requests:</p>
               <div className="bg-slate-50 rounded-lg p-4">
-                <p><strong>Privacy Team:</strong> privacy@medgptscholar.com</p>
-                <p><strong>Data Protection Officer:</strong> dpo@medgptscholar.com</p>
+                <p><strong>Privacy Team:</strong> privacy@clinisynth.com</p>
+                <p><strong>Data Protection Officer:</strong> dpo@clinisynth.com</p>
                 <p><strong>Address:</strong> [Your Company Address]</p>
                 <p><strong>Response Time:</strong> We aim to respond within 48 hours</p>
               </div>
@@ -303,7 +302,7 @@ export default function PrivacyPolicy() {
             href="/" 
             className="inline-flex items-center px-6 py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 transition-colors"
           >
-            Return to MedGPT Scholar
+            Return to CliniSynth
           </Link>
         </div>
       </main>

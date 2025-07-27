@@ -3,7 +3,8 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Brain, Play, Rocket, Database, BarChart3, Download } from "lucide-react";
+import { Play, Rocket, Database, BarChart3, Download } from "lucide-react";
+import { Logo } from "@/components/ui/Logo";
 import { useRouter } from "next/navigation";
 
 export default function Hero() {
@@ -74,7 +75,7 @@ export default function Hero() {
                   <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
                   <div className="w-3 h-3 bg-green-400 rounded-full"></div>
                 </div>
-                <span className="text-sm font-medium text-slate-600">MedGPT Scholar</span>
+                <span className="text-sm font-medium text-slate-600">CliniSynth</span>
               </div>
               <div className="text-xs text-slate-500 bg-primary/10 px-2 py-1 rounded">Research Mode</div>
             </div>
@@ -93,9 +94,7 @@ export default function Hero() {
                 <div className="flex justify-start">
                   <Card className="px-4 py-3 max-w-2xl shadow-sm">
                     <div className="flex items-start space-x-3">
-                      <div className="w-6 h-6 medical-gradient rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <Brain className="w-3 h-3 text-white" />
-                      </div>
+                      <Logo className="flex-shrink-0" />
                       <div className="space-y-2">
                         <p className="text-sm text-slate-700"><strong>Evidence Summary (High Certainty - GRADE A)</strong></p>
                         <p className="text-sm text-slate-600">Based on 12 randomized controlled trials (n=45,678), statins reduce cardiovascular events in elderly patients by approximately 22% (RR: 0.78, 95% CI: 0.69-0.88).</p>
