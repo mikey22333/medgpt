@@ -4,9 +4,10 @@ import { type Message } from "@/lib/types/chat";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  context: { params: Promise<{ sessionId: string }> }
 ) {
   try {
+    const params = await context.params;
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
@@ -70,9 +71,10 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { sessionId: string } }
+  context: { params: Promise<{ sessionId: string }> }
 ) {
   try {
+    const params = await context.params;
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
