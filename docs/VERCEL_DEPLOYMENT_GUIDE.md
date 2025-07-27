@@ -18,21 +18,79 @@
 
 ### 🌐 **Environment Variables Required**
 
-#### **Essential for Basic Functionality:**
-```
-OPENROUTER_API_KEY=your_key_here
+#### **🔴 CRITICAL - Required for Basic Functionality:**
+```bash
+# Primary AI Service (REQUIRED)
+TOGETHER_API_KEY=your_together_ai_key_here
+
+# Application Configuration (REQUIRED)
 NEXT_PUBLIC_APP_URL=https://your-domain.vercel.app
 NODE_ENV=production
-```
 
-#### **For Advanced Features:**
-```
+# Database (REQUIRED for user features)
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
-PUBMED_API_KEY=your_pubmed_key
-SEMANTIC_SCHOLAR_API_KEY=your_semantic_scholar_key
-FDA_API_KEY=your_fda_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# Authentication (REQUIRED for login)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
+
+#### **🟡 OPTIONAL - For Enhanced Research Features:**
+```bash
+# Research APIs (Optional - improve search quality)
+PUBMED_API_KEY=your_pubmed_key              # Better PubMed rate limits
+SEMANTIC_SCHOLAR_API_KEY=your_semantic_key  # Enhanced paper search
+EUROPE_PMC_EMAIL=your_email@domain.com      # Europe PMC access
+CROSSREF_EMAIL=your_email@domain.com        # CrossRef enhanced service
+
+# Additional AI Services (FAILOVER ONLY - not used unless primary fails)
+OPENROUTER_API_KEY=your_openrouter_key      # 🔄 AUTOMATIC failover when Together AI is down
+GOOGLE_GEMINI_API_KEY=your_gemini_key       # Alternative AI model
+
+# Specialized APIs (Optional - niche features)
+GUIDELINE_API_KEY=your_guideline_key        # Medical guidelines
+OPENALEX_API_KEY=your_openalex_key          # Academic research
+FDA_API_KEY=your_fda_key                    # FDA drug data
+```
+
+#### **🔍 API Key Priority Analysis:**
+
+**🚨 MUST HAVE (App won't work without these):**
+1. `TOGETHER_API_KEY` - Primary AI service for chat responses
+2. `NEXT_PUBLIC_SUPABASE_URL` & keys - Database and authentication
+3. `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET` - User login
+
+**⭐ HIGHLY RECOMMENDED (Significantly improves experience):**
+4. `PUBMED_API_KEY` - Medical research is core functionality
+5. `SEMANTIC_SCHOLAR_API_KEY` - Academic paper search quality
+
+**✅ NICE TO HAVE (Adds value but not essential):**
+6. `EUROPE_PMC_EMAIL` - Additional research source
+7. `OPENROUTER_API_KEY` - AI service redundancy/failover
+8. Rest are specialized/optional features
+
+#### **🔄 AI Service Failover Mechanism:**
+```
+Primary: Together AI → Failover: OpenRouter (automatic)
+
+How it works:
+1. 🟢 App ALWAYS tries Together AI first
+2. � If Together AI fails/is down → Automatically switches to OpenRouter
+3. 🔄 Once Together AI recovers → Switches back to primary
+4. 🚫 OpenRouter is NEVER used unless Together AI is unavailable
+
+This ensures maximum uptime for your medical platform!
+```
+
+#### **�💡 Missing API Key Impact:**
+- **Without TOGETHER_API_KEY**: Chat completely broken ❌
+- **Without Supabase keys**: No user accounts/auth ❌  
+- **Without PUBMED_API_KEY**: Research works but lower quality/rate limits ⚠️
+- **Without SEMANTIC_SCHOLAR_API_KEY**: Fewer academic papers ⚠️
+- **Without OPENROUTER_API_KEY**: No failover if Together AI goes down ⚠️
+- **Without others**: Minor feature degradation ℹ️
 
 ### 📋 **Deployment Steps**
 

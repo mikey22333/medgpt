@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TogetherAIClient } from "@/lib/ai/together";
+import { aiService } from "@/lib/ai/ai-service";
 import { RAGPipeline } from "@/lib/research/rag";
 import { createEnhancedMedicalPrompt, validateMedicalQuery } from "@/lib/ai/prompts";
 import { DeepThinkingEngine } from "@/lib/ai/deep-thinking";
@@ -145,28 +145,25 @@ export async function POST(request: NextRequest) {
     const enableMultiAgent = body.enableMultiAgent !== false; // Re-enable multi-agent
     const sessionId = body.sessionId || crypto.randomUUID();
 
-    // Initialize AI service
-    const apiKey = process.env.TOGETHER_API_KEY;
-    
-    if (!apiKey) {
+    // Use AIService with automatic fallback from Together AI to OpenRouter
+    try {
+      // Test AI service health (will try primary first, then fallback)
+      const isAIHealthy = await aiService.checkHealth();
+      
+      if (!isAIHealthy) {
+        return NextResponse.json({
+          error: "AI service is currently unavailable",
+          message: "All AI services are temporarily unavailable.",
+          suggestions: ["Please try again in a moment"]
+        }, { status: 503 });
+      }
+    } catch (error) {
+      console.error("AI service initialization failed:", error);
       return NextResponse.json({
-        error: "AI service is not configured",
-        message: "Together AI API key is missing.",
-        suggestions: ["Please contact support"]
-      }, { status: 503 });
-    }
-
-    const together = new TogetherAIClient(apiKey);
-
-    // Check if Together AI is available
-    const isTogetherHealthy = await together.checkHealth();
-    
-    if (!isTogetherHealthy) {
-      return NextResponse.json({
-        error: "AI service is currently unavailable",
-        message: "The AI service is temporarily unavailable.",
-        suggestions: ["Please try again in a moment"]
-      }, { status: 503 });
+        error: "AI service configuration error",
+        message: "AI service could not be initialized. Please check API keys.",
+        suggestions: ["Please contact support if this persists"]
+      }, { status: 500 });
     }
 
     let citations: Citation[] = [];
@@ -383,8 +380,8 @@ export async function POST(request: NextRequest) {
       }
     ];
 
-    // Generate AI response
-    const aiResponse = await together.generateResponse(messages, model, {
+    // Generate AI response with automatic fallback
+    const aiResponse = await aiService.generateResponse(messages, model, {
       temperature: 0.7,
       max_tokens: 2000
     });
@@ -523,16 +520,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const apiKey = process.env.TOGETHER_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "Together AI API key not configured" },
-      { status: 503 }
-    );
-  }
-
-  const together = new TogetherAIClient(apiKey);
-
+  // Use AIService with automatic fallback for streaming
   try {
     // Create a streaming response
     const encoder = new TextEncoder();
@@ -542,7 +530,7 @@ export async function GET(request: NextRequest) {
         try {
           const messages = [{ role: "user" as const, content: message }];
           
-          await together.generateStreamingResponse(messages, model, (chunk) => {
+          await aiService.generateStreamingResponse(messages, model, (chunk: string) => {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: chunk })}\n\n`));
           });
           
