@@ -22,13 +22,28 @@ export async function GET(request: NextRequest) {
   console.log('Auth callback initial params:', { 
     code: code ? 'present' : 'missing',
     redirectedFrom,
-    searchParams: Object.fromEntries(searchParams)
+    searchParams: Object.fromEntries(searchParams),
+    origin,
+    url: request.url,
+    headers: {
+      host: request.headers.get('host'),
+      'x-forwarded-host': request.headers.get('x-forwarded-host'),
+      'x-forwarded-proto': request.headers.get('x-forwarded-proto'),
+      referer: request.headers.get('referer')
+    }
   });
 
   if (code) {
     const supabase = await createClient();
     
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    console.log('Supabase auth exchange starting...');
+    const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code);
+    
+    console.log('Supabase auth result:', {
+      error: error?.message,
+      hasSession: !!sessionData?.session,
+      user: sessionData?.session?.user?.email
+    });
     
     if (!error) {
       // Get all relevant headers for debugging
