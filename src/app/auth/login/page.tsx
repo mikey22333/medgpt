@@ -133,16 +133,26 @@ function LoginPageContent() {
         redirectUrl 
       });
       
-      const { error } = await supabase.auth.signInWithOAuth({
+      console.log('About to call Supabase signInWithOAuth...');
+      
+      // TEMPORARY DEBUG: Manual OAuth URL construction to see what Supabase generates vs what we want
+      const manualOAuthUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}`;
+      console.log('Manual OAuth URL would be:', manualOAuthUrl);
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
+          skipBrowserRedirect: false,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
           }
         },
       });
+      
+      console.log('Supabase OAuth response:', { data, error });
+      console.log('Supabase should redirect to:', redirectUrl);
       
       if (error) throw error;
     } catch (error: any) {
