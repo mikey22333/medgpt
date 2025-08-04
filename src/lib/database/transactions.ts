@@ -22,7 +22,7 @@ class DatabaseTransactions {
   
   // Safely check and decrement query limit with atomic operation
   async checkAndDecrementQueryLimit(userId: string): Promise<QueryLimitResult> {
-    const supabase = createClient();
+    const supabase = await createClient();
     
     // DEVELOPMENT BYPASS: Skip database check in development
     if (process.env.NODE_ENV === 'development') {
@@ -30,7 +30,7 @@ class DatabaseTransactions {
       return {
         success: true,
         remainingQueries: 99,
-        error: null
+        error: undefined
       };
     }
     
@@ -77,7 +77,7 @@ class DatabaseTransactions {
 
   // Get user query status without decrementing
   async getUserQueryStatus(userId: string): Promise<{ queryLimit: number; queriesUsed: number; remainingQueries: number } | null> {
-    const supabase = createClient();
+    const supabase = await createClient();
     
     try {
       const { data, error } = await supabase
@@ -129,7 +129,7 @@ class DatabaseTransactions {
 
   // Safely create user profile with proper defaults
   async createUserProfile(userId: string, email: string, fullName?: string): Promise<boolean> {
-    const supabase = createClient();
+    const supabase = await createClient();
     
     try {
       // Use upsert to handle race conditions
@@ -166,7 +166,7 @@ class DatabaseTransactions {
 
   // Update subscription tier safely
   async updateSubscriptionTier(userId: string, newTier: string): Promise<boolean> {
-    const supabase = createClient();
+    const supabase = await createClient();
     
     try {
       // Determine new query limit based on tier
@@ -203,7 +203,7 @@ class DatabaseTransactions {
 
   // Batch operation for multiple users (admin use)
   async batchUpdateQueryLimits(updates: { userId: string; newLimit: number }[]): Promise<number> {
-    const supabase = createClient();
+    const supabase = await createClient();
     let successCount = 0;
 
     // Process in batches of 10 to avoid overwhelming the database
