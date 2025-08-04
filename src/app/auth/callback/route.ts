@@ -45,6 +45,16 @@ export async function GET(request: NextRequest) {
       let redirectUrl;
       let baseUrl;
       
+      console.log('Production detection debug:', {
+        NODE_ENV: process.env.NODE_ENV,
+        isLocalEnv,
+        host,
+        origin,
+        isLocalHost,
+        isProduction,
+        NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL
+      });
+      
       if (isProduction) {
         // Production environment - use production URL
         if (forwardedHost) {
