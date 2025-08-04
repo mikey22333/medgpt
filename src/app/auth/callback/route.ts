@@ -36,34 +36,30 @@ export async function GET(request: NextRequest) {
       const forwardedProto = request.headers.get('x-forwarded-proto') || 'https';
       const host = request.headers.get('host');
       const referer = request.headers.get('referer');
+      
+      // More reliable production detection
       const isLocalEnv = process.env.NODE_ENV === 'development';
+      const isLocalHost = host?.includes('localhost') || host?.includes('127.0.0.1') || origin.includes('localhost');
+      const isProduction = !isLocalEnv && !isLocalHost;
       
       let redirectUrl;
       let baseUrl;
       
-      if (isLocalEnv || host?.includes('localhost') || origin.includes('localhost')) {
-        // Development environment - force localhost
-        baseUrl = 'http://localhost:3000';
-      } else {
-        // Production environment - determine correct base URL
+      if (isProduction) {
+        // Production environment - use production URL
         if (forwardedHost) {
           // Use forwarded host (most reliable for proxied requests)
           baseUrl = `${forwardedProto}://${forwardedHost}`;
         } else if (host && !host.includes('localhost')) {
           // Use host header if it's not localhost
           baseUrl = `https://${host}`;
-        } else if (referer && !referer.includes('localhost')) {
-          // Fallback to referer origin if available
-          try {
-            const refererUrl = new URL(referer);
-            baseUrl = refererUrl.origin;
-          } catch {
-            baseUrl = origin;
-          }
         } else {
-          // Last resort - use request origin
-          baseUrl = origin;
+          // Fallback to environment variable or hardcoded production URL
+          baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://clinisynth.onrender.com';
         }
+      } else {
+        // Development environment - use localhost
+        baseUrl = 'http://localhost:3000';
       }
       
       redirectUrl = `${baseUrl}${redirectedFrom}`;
@@ -78,7 +74,8 @@ export async function GET(request: NextRequest) {
         redirectedFrom, 
         baseUrl,
         redirectUrl,
-        isLocalEnv,
+        isLocalEnv: !isProduction,
+        isProduction,
         NODE_ENV: process.env.NODE_ENV
       });
       
