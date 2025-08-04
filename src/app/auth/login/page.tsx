@@ -119,29 +119,16 @@ function LoginPageContent() {
     setError(null);
 
     try {
-      // Get the correct base URL for redirects with comprehensive fallbacks
-      let baseUrl = '';
-      if (typeof window !== 'undefined') {
-        const hostname = window.location.hostname;
-        const protocol = window.location.protocol;
-        
-        // If we're on a production domain, use it
-        if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-          baseUrl = `https://${hostname}`;
-        } else if (protocol === 'http:' && hostname === 'localhost') {
-          // Local development
-          baseUrl = `http://localhost:3000`;
-        } else {
-          // Fallback to current origin
-          baseUrl = window.location.origin;
-        }
-      }
+      // Force production URL regardless of environment
+      const isProduction = !window.location.hostname.includes('localhost');
+      const baseUrl = isProduction ? 'https://clinisynth.onrender.com' : 'http://localhost:3000';
       
       const redirectUrl = `${baseUrl}/auth/callback?redirectedFrom=${encodeURIComponent(redirectedFrom)}`;
       
-      console.log('Google OAuth redirect URL:', { 
+      console.log('Google OAuth redirect URL (forced):', { 
         hostname: window.location.hostname,
         protocol: window.location.protocol,
+        isProduction,
         baseUrl, 
         redirectUrl 
       });
@@ -150,6 +137,10 @@ function LoginPageContent() {
         provider: 'google',
         options: {
           redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         },
       });
       
