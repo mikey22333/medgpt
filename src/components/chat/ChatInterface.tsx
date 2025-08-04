@@ -249,7 +249,17 @@ export function ChatInterface({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        
+        // Handle specific error types
+        if (response.status === 429) {
+          throw new Error('Rate limit exceeded. Please wait a moment before sending another message.');
+        } else if (response.status === 401) {
+          throw new Error('Authentication required. Please log in again.');
+        } else if (response.status === 403) {
+          throw new Error('Query limit reached. Please upgrade to Pro or wait for reset.');
+        } else {
+          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
       }
 
       const data = await response.json();
@@ -316,17 +326,27 @@ export function ChatInterface({
       }, 500); // 500ms delay to ensure database consistency
       
     } catch (error) {
-      console.error('Error:', error);
-      toast.error(error instanceof Error ? error.message : 'An error occurred');
+      console.error('Chat error:', error);
+      
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      // Show user-friendly error message
+      toast.error(errorMessage);
       
       // Add error message to chat
-      const errorMessage: Message = {
+      const errorChatMessage: Message = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: `I apologize, but I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
+        content: `I apologize, but I encountered an error: ${errorMessage}. Please try again in a moment.`,
         timestamp: new Date(),
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => [...prev, errorChatMessage]);
     } finally {
       setIsLoading(false);
       isSendingMessage.current = false;

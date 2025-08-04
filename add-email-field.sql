@@ -12,12 +12,12 @@ FROM auth.users
 WHERE public.user_profiles.id = auth.users.id 
 AND public.user_profiles.email IS NULL;
 
--- Update the handle_new_user function to include email
+-- Update the handle_new_user function to include email and set correct query_limit
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-    INSERT INTO public.user_profiles (id, full_name, email)
-    VALUES (new.id, new.raw_user_meta_data->>'full_name', new.email);
+    INSERT INTO public.user_profiles (id, full_name, email, query_limit, queries_used, subscription_tier)
+    VALUES (new.id, new.raw_user_meta_data->>'full_name', new.email, 3, 0, 'free');
     RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

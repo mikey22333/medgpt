@@ -130,8 +130,8 @@ END $$;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-    INSERT INTO public.user_profiles (id, full_name, email)
-    VALUES (new.id, new.raw_user_meta_data->>'full_name', new.email);
+    INSERT INTO public.user_profiles (id, full_name, email, query_limit, queries_used, last_reset_date, subscription_tier)
+    VALUES (new.id, new.raw_user_meta_data->>'full_name', new.email, 3, 0, CURRENT_DATE, 'free');
     RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

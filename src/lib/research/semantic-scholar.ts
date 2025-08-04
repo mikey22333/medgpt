@@ -52,8 +52,8 @@ export class SemanticScholarClient {
       headers["x-api-key"] = this.apiKey;
     }
 
-    // Add retry logic for rate limiting
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    // Enhanced retry logic for rate limiting
+    for (let attempt = 1; attempt <= 3; attempt++) {
       const response = await fetch(
         `${SEMANTIC_SCHOLAR_BASE_URL}/paper/search?${params}`,
         {
@@ -65,12 +65,16 @@ export class SemanticScholarClient {
       if (!response.ok) {
         // Handle rate limiting and API key issues gracefully
         if (response.status === 403 || response.status === 429) {
-          if (attempt === 1) {
-            console.warn(`Semantic Scholar API limiting (${response.status}): Attempt ${attempt}, waiting 2s...`);
-            await this.delay(2000); // Wait 2 seconds before retry
+          const waitTime = Math.min(attempt * 3000, 10000); // Exponential backoff: 3s, 6s, 9s
+          
+          if (attempt < 3) {
+            console.warn(`Semantic Scholar API limiting (${response.status}): Attempt ${attempt}, waiting ${waitTime/1000}s...`);
+            await this.delay(waitTime);
             continue;
           } else {
             console.warn(`Semantic Scholar API limiting (${response.status}): ${response.statusText} - returning empty results`);
+            const errorText = await response.text().catch(() => 'No error details');
+            console.log('Rate limit details:', errorText);
             return []; // Return empty array instead of throwing error
           }
         }

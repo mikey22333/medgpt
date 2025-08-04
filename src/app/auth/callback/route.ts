@@ -41,9 +41,9 @@ export async function GET(request: NextRequest) {
       let redirectUrl;
       let baseUrl;
       
-      if (isLocalEnv) {
-        // Development environment
-        baseUrl = origin;
+      if (isLocalEnv || host?.includes('localhost') || origin.includes('localhost')) {
+        // Development environment - force localhost
+        baseUrl = 'http://localhost:3000';
       } else {
         // Production environment - determine correct base URL
         if (forwardedHost) {

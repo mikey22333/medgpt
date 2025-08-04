@@ -207,7 +207,7 @@ export class ImprovedQueryProcessor {
 
   // Extract medical terms from natural language
   private static extractMedicalTerms(query: string): string[] {
-    const medicalPattern = /\b(?:diabetes|hypertension|cancer|asthma|depression|anxiety|covid|pneumonia|influenza|stroke|heart|cardiac|renal|hepatic|pulmonary|neurological|psychiatric|oncology|cardiology|medication|drug|treatment|therapy|diagnosis|prognosis|symptoms?|disease|condition|syndrome|disorder|infection|inflammation|prevention|screening|management)\b/gi;
+    const medicalPattern = /\b(?:diabetes|hypertension|cancer|asthma|depression|anxiety|covid|pneumonia|influenza|stroke|heart|cardiac|renal|hepatic|pulmonary|neurological|psychiatric|oncology|cardiology|medication|drug|treatment|therapy|diagnosis|prognosis|symptoms?|disease|condition|syndrome|disorder|infection|inflammation|prevention|screening|management|social media|digital media|internet|online|technology|screen time|wellbeing|adolescent|teenager|youth|mental health|psychological|behavioral|mood|cyberbullying|self-esteem)\b/gi;
     
     const matches = query.match(medicalPattern) || [];
     return [...new Set(matches.map(m => m.toLowerCase()))];
@@ -254,6 +254,28 @@ export class ImprovedQueryProcessor {
       'bipolar disorder': 'Bipolar Disorder',
       'schizophrenia': 'Schizophrenia',
       'ptsd': 'Stress Disorders, Post-Traumatic',
+      'mental health': 'Mental Health',
+      'psychological': 'Psychology',
+      'behavioral': 'Behavior',
+      'mood': 'Mood Disorders',
+      'wellbeing': 'Health Status',
+      'self-esteem': 'Self Concept',
+      
+      // Digital Health & Social Media
+      'social media': 'Social Media',
+      'digital media': 'Social Media',
+      'internet': 'Internet',
+      'online': 'Internet',
+      'technology': 'Technology',
+      'screen time': 'Screen Time',
+      'cyberbullying': 'Cyberbullying',
+      'digital technology': 'Technology',
+      'social networking': 'Social Networking',
+      
+      // Populations (Digital Health Context)
+      'adolescent': 'Adolescent',
+      'teenager': 'Adolescent',
+      'youth': 'Adolescent',
       
       // Infectious Diseases
       'covid': 'COVID-19',

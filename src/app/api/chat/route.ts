@@ -7,6 +7,10 @@ import { MultiAgentReasoningSystem } from "@/lib/ai/multi-agent-reasoning";
 import { RealTimeReasoningEngine, AdvancedConfidenceCalibration } from "@/lib/ai/real-time-reasoning";
 import { type Message, type Citation } from "@/lib/types/chat";
 import { createClient } from "@/lib/supabase/server";
+import { requestQueue, withRequestQueue } from "@/lib/concurrency/request-queue";
+import { rateLimiter, withRateLimit } from "@/lib/concurrency/rate-limiter";
+import { dbTransactions } from "@/lib/database/transactions";
+import { errorTracker, withCircuitBreaker } from "@/lib/monitoring/error-tracker";
 
 // Enhanced context generation function
 function generateEnhancedContextSummary(citations: Citation[], userQuery: string, researchData: any): string {
@@ -64,7 +68,7 @@ export async function POST(request: NextRequest) {
   try {
     console.log('Chat API: Request received at', new Date().toISOString());
     
-    // Check authentication
+    // Check authentication first
     const supabase = await createClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     
@@ -82,21 +86,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check query limits
-    const { data: limitCheck } = await supabase.rpc('check_query_limit', {
-      user_uuid: user.id
+    // Use request queue to manage concurrent requests per user
+    return await requestQueue.queueRequest(user.id, 'chat', async () => {
+      return await processChatRequest(request, user.id, supabase);
     });
+
+  } catch (error: any) {
+    console.error('Chat API: Outer error:', error);
+    return NextResponse.json(
+      { error: "Internal server error", details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// Main chat processing function
+async function processChatRequest(request: NextRequest, userId: string, supabase: any) {
+  try {
+
+    // Check query limits using safe transaction
+    const limitResult = await dbTransactions.checkAndDecrementQueryLimit(userId);
 
     console.log('Chat API: Query limit check:', { 
-      userId: user.id, 
-      limitCheck, 
-      canProceed: !!limitCheck 
+      userId: userId, 
+      success: limitResult.success,
+      remaining: limitResult.remainingQueries,
+      error: limitResult.error
     });
 
-    if (!limitCheck) {
-      console.log('Chat API: Query limit exceeded');
+    if (!limitResult.success) {
+      console.log('Chat API: Query limit exceeded or error:', limitResult.error);
       return NextResponse.json(
-        { error: "Query limit exceeded. Please upgrade your plan or wait for the next billing cycle." },
+        { 
+          error: limitResult.error || "Query limit exceeded. Please upgrade your plan or wait for the next billing cycle.",
+          remainingQueries: limitResult.remainingQueries
+        },
         { status: 429 }
       );
     }
@@ -181,18 +205,27 @@ export async function POST(request: NextRequest) {
       try {
         console.log("Starting Enhanced Research retrieval...");
         
-        // Call our enhanced research API directly instead of old RAGPipeline
-        const researchResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/research`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            query: userMessage,
-            maxResults: 10, // Request 10 citations for comprehensive research
-            includeAbstracts: true,
-            isLegacyChatCall: true // 🔧 FIX: Ensure we get the legacy format with 'papers' field
-          })
+        // Call research API with circuit breaker protection
+        const researchResponse = await withCircuitBreaker('research-api', async () => {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/research`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              query: userMessage,
+              maxResults: 10, // Request 10 citations for comprehensive research
+              includeAbstracts: true,
+              isLegacyChatCall: true // 🔧 FIX: Ensure we get the legacy format with 'papers' field
+            }),
+            signal: AbortSignal.timeout(30000) // 30 second timeout
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Research API failed: ${response.status} ${response.statusText}`);
+          }
+          
+          return response;
         });
 
         console.log("🔧 CITATION FIX: Calling Research API with isLegacyChatCall=true to ensure 10 citations");
@@ -380,10 +413,12 @@ export async function POST(request: NextRequest) {
       }
     ];
 
-    // Generate AI response with automatic fallback
-    const aiResponse = await aiService.generateResponse(messages, model, {
-      temperature: 0.7,
-      max_tokens: 2000
+    // Generate AI response with automatic fallback and circuit breaker protection
+    const aiResponse = await withCircuitBreaker('ai-service', async () => {
+      return await aiService.generateResponse(messages, model, {
+        temperature: 0.7,
+        max_tokens: 2000
+      });
     });
 
     // Inject confidence information if multi-agent analysis was performed
@@ -416,7 +451,7 @@ export async function POST(request: NextRequest) {
 
     // Log the query to database
     try {
-      console.log('Chat API: Saving messages for session:', sessionId, 'user:', user.id);
+      console.log('Chat API: Saving messages for session:', sessionId, 'user:', userId);
       console.log('Chat API: Message details:', {
         userMessage: userMessage.slice(0, 100) + '...',
         aiResponseLength: enhancedAiResponse.length,
@@ -426,7 +461,7 @@ export async function POST(request: NextRequest) {
       
       // First save the user message
       const userInsertResult = await supabase.from('chat_messages').insert({
-        user_id: user.id,
+        user_id: userId,
         session_id: sessionId,
         mode: mode,
         role: 'user',
@@ -440,7 +475,7 @@ export async function POST(request: NextRequest) {
 
       // Then save the assistant message  
       const assistantInsertResult = await supabase.from('chat_messages').insert({
-        user_id: user.id,
+        user_id: userId,
         session_id: sessionId,
         mode: mode,
         role: 'assistant',
@@ -458,7 +493,7 @@ export async function POST(request: NextRequest) {
       await Promise.all([
         // Insert query record
         supabase.from('user_queries').insert({
-          user_id: user.id,
+          user_id: userId,
           mode: mode,
           query_text: userMessage,
           response_text: enhancedAiResponse,
@@ -466,8 +501,8 @@ export async function POST(request: NextRequest) {
           confidence_score: multiAgentResult ? Math.round(multiAgentResult.confidenceCalibration?.overallConfidence || 75) : 75,
           session_id: sessionId
         }),
-        // Increment user query count
-        supabase.rpc('increment_query_count', { user_uuid: user.id })
+        // Increment user query count - REMOVED since we already decremented in checkAndDecrementQueryLimit
+        // supabase.rpc('increment_query_count', { user_uuid: userId })
       ]);
       
       console.log('Chat API: Messages saved successfully');

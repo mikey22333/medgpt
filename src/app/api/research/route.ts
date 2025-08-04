@@ -10,7 +10,8 @@ import { crossRefAPI, medicalResearchHelpers } from "@/lib/research/crossref";
 import { EuropePMCClient } from "@/lib/research/europepmc";
 import { FDAClient } from "@/lib/research/fda";
 import { OpenAlexClient } from "@/lib/research/openalex";
-// New high-quality medical databases
+// New hi
+// dical databases
 import DOAJClient from "@/lib/research/clients/DOAJClient";
 import { BioRxivClient } from "@/lib/research/biorxiv";
 import { ClinicalTrialsClient } from "@/lib/research/clinicaltrials";
@@ -25,6 +26,8 @@ import { MedicalRelevanceDetector } from "@/lib/research/medical-relevance-detec
 import { EnhancedMedicalRelevanceFilter } from "@/lib/research/enhanced-relevance-filter";
 // Semantic search service to fix irrelevant citations
 import { SemanticMedicalSearchService } from "@/lib/research/semantic-search";
+// Import new HuggingFace biomedical embeddings service
+import { biomedicalEmbeddings } from "@/lib/research/huggingface-biomedical";
 import { type ResearchQuery, type PubMedArticle, type SemanticScholarPaper, type CrossRefPaper } from "@/lib/types/research";
 
 // Essential helper functions
@@ -189,7 +192,7 @@ function isMedicallyRelevant(title: string, abstract: string = "", journal: stri
     // Business/Management/Social Sciences
     'business', 'management', 'marketing', 'finance', 'economics', 'corporate strategy',
     'organizational behavior', 'human resources', 'accounting', 'supply chain',
-    'social media', 'education policy', 'political science', 'sociology', 'anthropology',
+    'education policy', 'political science', 'sociology', 'anthropology',
     
     // Non-medical academic fields
     'literature', 'linguistics', 'philosophy', 'history', 'art', 'music', 'psychology' // unless clinical
@@ -241,6 +244,11 @@ function isMedicallyRelevant(title: string, abstract: string = "", journal: stri
     'pediatric', 'paediatric', 'maternal', 'pregnancy', 'prenatal', 'postnatal', 'newborn',
     'baby', 'toddler', 'adolescent', 'growth', 'development', 'allergy', 'atopy', 'wheeze',
     'wheezing', 'respiratory health', 'immune development', 'feeding', 'formula',
+    
+    // Digital health and social media terms - CRITICAL FOR MENTAL HEALTH QUERIES
+    'social media', 'digital media', 'internet use', 'screen time', 'online platform',
+    'digital technology', 'social networking', 'cyberbullying', 'digital wellbeing',
+    'technology use', 'smartphone', 'social network', 'online behavior', 'digital behavior',
     
     // Nutritional/supplement terms - CRITICAL FOR OMEGA-3 QUERIES
     'omega-3', 'omega 3', 'fatty acid', 'epa', 'dha', 'fish oil', 'polyunsaturated',
@@ -332,6 +340,17 @@ function isMedicallyRelevant(title: string, abstract: string = "", journal: stri
       const hasLipidContent = lipidTerms.some(term => combinedText.includes(term));
       if (hasLipidContent) score += 3; // Higher bonus for lipid/cholesterol relevance
     }
+    
+    // Social media and mental health specific bonus scoring
+    if (queryLower.includes('social media') && (queryLower.includes('mental health') || queryLower.includes('adolescent') || queryLower.includes('depression'))) {
+      const socialMediaTerms = ['social media', 'digital media', 'internet use', 'screen time', 'online platform', 
+                               'digital technology', 'social networking', 'cyberbullying', 'digital wellbeing'];
+      const mentalHealthTerms = ['mental health', 'adolescent', 'depression', 'anxiety', 'psychological', 'wellbeing', 
+                                'mood', 'self-esteem', 'behavioral', 'psychosocial'];
+      const hasSocialMediaContent = socialMediaTerms.some(term => combinedText.includes(term));
+      const hasMentalHealthContent = mentalHealthTerms.some(term => combinedText.includes(term));
+      if (hasSocialMediaContent && hasMentalHealthContent) score += 4; // Very high bonus for social media + mental health relevance
+    }
   }
   
   return score >= 3; // Must meet minimum medical relevance threshold
@@ -381,6 +400,9 @@ async function searchMedicalCrossRef(query: string, options: { limit?: number } 
     } else if (query.toLowerCase().includes('heart') || query.toLowerCase().includes('cardiac') || query.toLowerCase().includes('cardiovascular')) {
       // Cardiovascular specific enhancement
       enhancedQuery = `${query} AND (heart OR cardiac OR cardiovascular OR "heart disease" OR "coronary artery" OR "myocardial infarction" OR "heart failure" OR cardiology)`;
+    } else if (query.toLowerCase().includes('social media') && (query.toLowerCase().includes('mental health') || query.toLowerCase().includes('adolescent') || query.toLowerCase().includes('depression'))) {
+      // Social media + mental health specific enhancement  
+      enhancedQuery = `${query} AND ("social media" OR "social networking" OR "digital media" OR "online platform" OR "internet use" OR "screen time" OR "digital technology") AND ("mental health" OR "adolescent" OR "teenager" OR "youth" OR "depression" OR "anxiety" OR "wellbeing" OR "psychological" OR "mood" OR "self-esteem" OR "cyberbullying")`;
     } else {
       // General medical enhancement for ALL queries
       enhancedQuery = `${query} AND (medical OR clinical OR health OR patient OR treatment OR therapy OR disease OR diagnosis OR healthcare OR study OR research)`;
@@ -1052,6 +1074,9 @@ export async function POST(request: NextRequest) {
         } else if (query.toLowerCase().includes('heart') || query.toLowerCase().includes('cardiac')) {
           // Cardiovascular specific enhancement
           enhancedEuropePMCQuery = `${query} AND (heart OR cardiac OR cardiovascular OR "heart disease" OR cardiology)`;
+        } else if (query.toLowerCase().includes('social media') && (query.toLowerCase().includes('mental health') || query.toLowerCase().includes('adolescent') || query.toLowerCase().includes('depression'))) {
+          // Social media + mental health specific enhancement
+          enhancedEuropePMCQuery = `${query} AND ("social media" OR "social networking" OR "digital media" OR "online platform" OR "internet use" OR "screen time" OR "digital technology" OR "social network") AND ("mental health" OR "adolescent" OR "teenager" OR "youth" OR "depression" OR "anxiety" OR "wellbeing" OR "well-being" OR "psychological" OR "behavioral" OR "mood" OR "self-esteem" OR "cyberbullying" OR "sleep" OR "social comparison")`;
         } else if (query.toLowerCase().includes('depression') || query.toLowerCase().includes('mental health')) {
           // Mental health specific enhancement
           enhancedEuropePMCQuery = `${query} AND (depression OR "mental health" OR psychiatric OR mood OR anxiety OR therapy)`;
@@ -2159,27 +2184,27 @@ export async function POST(request: NextRequest) {
       const cleanedPapers = SemanticMedicalSearchService.filterObviouslyIrrelevant(aggressivelyFilteredPapers);
       console.log(`📋 Cleaned papers: ${aggressivelyFilteredPapers.length} → ${cleanedPapers.length} (removed [object Object] issues)`);
       
-      // Apply semantic ranking to get truly relevant papers
-      const semanticSearchService = new SemanticMedicalSearchService();
-      const semanticallyRankedPapers = await semanticSearchService.rankPapersBySemantic(
+      // Apply NEW HuggingFace biomedical embeddings for semantic ranking
+      console.log(`🧬 Using HuggingFace biomedical embeddings for semantic ranking...`);
+      const biomedicalRankedPapers = await biomedicalEmbeddings.rankPapersWithEmbeddings(
         query, 
         cleanedPapers, 
         { 
-          threshold: 0.2, // Relaxed threshold to include more relevant papers (was 0.25)
+          threshold: 0.2, // Relaxed threshold to include more relevant papers
           maxResults: maxResults * 4 // Get significantly more papers for comprehensive filtering
         }
       );
       
-      console.log(`🧠 Semantic ranking: ${cleanedPapers.length} → ${semanticallyRankedPapers.length} relevant papers`);
+      console.log(`🧠 Biomedical semantic ranking: ${cleanedPapers.length} → ${biomedicalRankedPapers.length} relevant papers`);
       
-      // Extract papers from semantic ranking results
-      const semanticallyFilteredPapers = semanticallyRankedPapers.map(item => {
-        // Add semantic relevance info to paper metadata
+      // Extract papers from biomedical ranking results
+      const semanticallyFilteredPapers = biomedicalRankedPapers.map(item => {
+        // Add biomedical relevance info to paper metadata
         const enhancedPaper = {
           ...item.paper,
-          semanticScore: item.similarityScore,
-          relevanceReason: item.relevanceReason,
-          isHighlyRelevant: item.isHighlyRelevant
+          semanticScore: item.score,
+          relevanceReason: item.reason, // Updated to use 'reason' from biomedical embeddings
+          isHighlyRelevant: item.score >= 0.7 // Calculate based on biomedical score
         };
         return enhancedPaper;
       });
@@ -2283,10 +2308,10 @@ export async function POST(request: NextRequest) {
         response = generateNoResultsResponse(query);
       }        
       
-      // FINAL CITATION CLEANUP: Ensure no [object Object] or malformed data with enhanced cleaning
-      console.log(`🧹 CLEANING PROCESS START: Starting with ${finalFilteredPapers.length} finalFilteredPapers`);
+      // FINAL CITATION CLEANUP: Use biomedical semantically filtered papers instead of consensus papers
+      console.log(`🧹 CLEANING PROCESS START: Starting with ${semanticallyFilteredPapers.length} biomedical semantically filtered papers`);
       
-      const cleanedCitations = finalFilteredPapers
+      const cleanedCitations = semanticallyFilteredPapers
         .filter(paper => {
           // AGGRESSIVE FILTERING: Remove completely irrelevant papers but keep more relevant ones
           const title = (paper.title || '').toLowerCase();
@@ -2335,7 +2360,7 @@ export async function POST(request: NextRequest) {
         })
         // DON'T slice here - let the guarantee system handle the final count
         
-      console.log(`🧹 CLEANING PROCESS COMPLETE: ${cleanedCitations.length} papers passed cleaning (from ${finalFilteredPapers.length})`);
+      console.log(`🧹 CLEANING PROCESS COMPLETE: ${cleanedCitations.length} papers passed cleaning (from ${semanticallyFilteredPapers.length})`);
         
       // GUARANTEED 10 CITATIONS: Progressive relaxation if needed
       let guaranteedCitations = cleanedCitations.slice(0, 10);
@@ -2404,7 +2429,29 @@ export async function POST(request: NextRequest) {
             .slice(0, 10 - guaranteedCitations.length);
           
           console.log(`📄 FALLBACK LEVEL 3: Found ${additionalCitations3.length} additional papers from combinedResults (pool: ${combinedResults.length})`);
-          guaranteedCitations = [...guaranteedCitations, ...additionalCitations3];
+          // Fix: Add missing properties for type compatibility
+          const fixedAdditionalCitations3 = additionalCitations3.map(paper => ({
+            id: paper.id || `fallback-${Date.now()}-${Math.random()}`,
+            title: paper.title || 'Unknown Title',
+            authors: Array.isArray(paper.authors) ? paper.authors : 
+                    typeof paper.authors === 'string' ? [paper.authors] : ['Unknown Author'],
+            journal: paper.journal || 'Unknown Journal',
+            year: typeof paper.year === 'number' ? paper.year.toString() : paper.year || 'Unknown',
+            pmid: (paper as any).pmid,
+            pmcid: (paper as any).pmcid,
+            doi: paper.doi,
+            url: paper.url || '',
+            abstract: paper.abstract || '',
+            source: paper.source as any,
+            semanticScore: (paper as any).semanticScore || (paper as any).relevanceScore || 0.5,
+            relevanceReason: `Fallback Level 3: Selected from combined results pool (${paper.source})`,
+            isHighlyRelevant: ((paper as any).relevanceScore || 0) > 0.6,
+            studyType: paper.studyType as any || 'Observational',
+            evidenceLevel: 'Moderate' as any,
+            citationCount: (paper as any).citationCount || 0,
+            relevanceScore: (paper as any).relevanceScore || 0.5
+          }));
+          guaranteedCitations = [...guaranteedCitations, ...fixedAdditionalCitations3 as any];
         }
         
         // FALLBACK LEVEL 4: Enhanced orchestrator for difficult queries
@@ -2439,7 +2486,17 @@ export async function POST(request: NextRequest) {
               }));
             
             console.log(`📄 FALLBACK LEVEL 4: Found ${orchestratorCitations.length} additional papers from enhanced orchestrator`);
-            guaranteedCitations = [...guaranteedCitations, ...orchestratorCitations];
+            // Fix: Add missing properties for type compatibility
+            const fixedOrchestratorCitations = orchestratorCitations.map(paper => ({
+              ...paper,
+              year: typeof paper.year === 'number' ? paper.year.toString() : paper.year,
+              studyType: paper.studyType as any || 'Observational',
+              evidenceLevel: paper.evidenceLevel as any || 'Moderate',
+              semanticScore: paper.confidenceScore || 0.5,
+              relevanceReason: `Enhanced Orchestrator: High-quality research source (${paper.source})`,
+              isHighlyRelevant: (paper.confidenceScore || 0) > 0.6
+            }));
+            guaranteedCitations = [...guaranteedCitations, ...fixedOrchestratorCitations as any];
             
           } catch (error) {
             console.error("❌ Enhanced orchestrator fallback failed:", error);
@@ -2490,22 +2547,22 @@ export async function POST(request: NextRequest) {
                 })
                 .filter((name: string) => name && name !== 'Unknown Author' && name.length > 1)
                 .slice(0, 10);
-            } else if (typeof paper.authors === 'string' && 
-                       paper.authors !== '[object Object]' && 
-                       !paper.authors.includes('undefined') &&
-                       paper.authors.trim().length > 0) {
-              cleanAuthors = paper.authors.split(',')
+            } else if (typeof (paper as any).authors === 'string' && 
+                       (paper as any).authors !== '[object Object]' && 
+                       (paper as any).authors !== 'undefined' &&
+                       (paper as any).authors.trim().length > 0) {
+              cleanAuthors = (paper as any).authors.split(',')
                 .map((author: string) => author.trim())
                 .filter((author: string) => author.length > 2 && !author.includes('[object'))
                 .slice(0, 10);
             }
             
             if (cleanAuthors.length === 0) {
-              if (paper.source === 'FDA') {
+              if (paper.source === 'FDA Drug Labels' || paper.source === 'FDA FAERS' || paper.source === 'FDA Recalls') {
                 cleanAuthors = ['FDA Research Team'];
-              } else if (paper.source === 'Clinical Guidelines') {
+              } else if (paper.source === 'PubMed' || paper.source === 'Europe PMC') {
                 cleanAuthors = ['Clinical Guidelines Committee'];
-              } else if (paper.source === 'ClinicalTrials.gov') {
+              } else if (paper.source === 'Semantic Scholar' || paper.source === 'CrossRef') {
                 cleanAuthors = ['Clinical Trial Investigators'];
               } else {
                 cleanAuthors = ['Research Authors'];
@@ -2519,7 +2576,7 @@ export async function POST(request: NextRequest) {
             
             // Calculate query-specific relevance score
             let relevanceCategory = 'Highly Relevant';
-            let relevanceScore = paper.semanticScore || paper.relevanceScore || paper.consensusScore || 0;
+            let relevanceScore = paper.semanticScore || paper.relevanceScore || 0;
             let relevanceWarning = '';
             
             if (query.toLowerCase().includes('melatonin') && query.toLowerCase().includes('sleep')) {
@@ -2578,7 +2635,11 @@ export async function POST(request: NextRequest) {
               confidenceScore: paper.confidenceScore || 75,
               relevanceScore: relevanceScore,
               relevanceCategory: relevanceCategory,
-              relevanceWarning: relevanceWarning
+              relevanceWarning: relevanceWarning,
+              // PRESERVE BIOMEDICAL EMBEDDINGS DATA
+              semanticScore: paper.semanticScore, // From HuggingFace biomedical embeddings
+              biomedicalReason: paper.relevanceReason, // Biomedical similarity explanation
+              isHighlyRelevant: paper.isHighlyRelevant // Biomedical confidence indicator
             };
       });
       
@@ -2621,8 +2682,8 @@ export async function POST(request: NextRequest) {
             },
             {
               step: 2,
-              title: "Semantic Filtering",
-              process: `Applied semantic relevance filtering: ${finalFilteredPapers.length} → ${finalCitations.length} highly relevant papers`
+              title: "Biomedical Semantic Filtering",
+              process: `Applied HuggingFace biomedical embeddings (BAAI/bge-small-en-v1.5) for semantic relevance filtering: ${finalFilteredPapers.length} → ${finalCitations.length} highly relevant papers`
             },
             {
               step: 3,
