@@ -119,33 +119,31 @@ function LoginPageContent() {
     setError(null);
 
     try {
-      // Force production URL regardless of environment
-      const isProduction = !window.location.hostname.includes('localhost');
-      const baseUrl = isProduction ? 'https://clinisynth.onrender.com' : 'http://localhost:3000';
+      // ALWAYS use production URL for OAuth redirect
+      const baseUrl = 'https://clinisynth.onrender.com';
+      const redirectUrl = `${baseUrl}/auth/callback`;
       
-      const redirectUrl = `${baseUrl}/auth/callback?redirectedFrom=${encodeURIComponent(redirectedFrom)}`;
-      
-      console.log('🔍 DETAILED OAUTH DEBUG:', {
-        'Current hostname': window.location.hostname,
-        'Current protocol': window.location.protocol,
-        'Current origin': window.location.origin,
-        'Detected isProduction': isProduction,
-        'Calculated baseUrl': baseUrl,
-        'Final redirectUrl': redirectUrl,
-        'Supabase URL': process.env.NEXT_PUBLIC_SUPABASE_URL,
-        'Site URL env var': process.env.NEXT_PUBLIC_SITE_URL,
-        'NODE_ENV': process.env.NODE_ENV
+      console.log('🔍 OAUTH DEBUG - FORCING PRODUCTION:', {
+        'Current location': window.location.href,
+        'Forced baseUrl': baseUrl,
+        'OAuth redirectUrl': redirectUrl,
+        'RedirectedFrom': redirectedFrom
       });
       
-      // BYPASS SUPABASE CLIENT - Direct redirect to Google OAuth with correct flow
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const directGoogleAuthUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}&flow_type=pkce`;
+      // Use Supabase client with explicit redirect URL
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            redirectedFrom: redirectedFrom
+          }
+        }
+      });
       
-      console.log('🚀 Direct OAuth URL:', directGoogleAuthUrl);
-      console.log('🎯 Expected final redirect after auth:', redirectUrl);
-      
-      // Instead of using Supabase client, redirect directly
-      window.location.href = directGoogleAuthUrl;
+      if (error) {
+        throw error;
+      }
       
     } catch (error: any) {
       setError(error.message);
