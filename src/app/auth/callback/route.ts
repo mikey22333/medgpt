@@ -60,14 +60,15 @@ export async function GET(request: NextRequest) {
       let redirectUrl;
       let baseUrl;
       
-      console.log('Production detection debug:', {
+      console.log('🔍 CALLBACK DEBUG - Production detection:', {
         NODE_ENV: process.env.NODE_ENV,
         isLocalEnv,
         host,
         origin,
         isLocalHost,
         isProduction,
-        NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL
+        NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+        'All env vars': Object.keys(process.env).filter(key => key.includes('SITE') || key.includes('URL'))
       });
       
       if (isProduction) {
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
       redirectUrl = `${baseUrl}${redirectedFrom}`;
       
       // Enhanced logging for debugging
-      console.log('Auth callback redirect debug:', { 
+      console.log('🎯 FINAL REDIRECT DECISION:', { 
         origin, 
         host,
         forwardedHost, 
@@ -101,8 +102,11 @@ export async function GET(request: NextRequest) {
         redirectUrl,
         isLocalEnv: !isProduction,
         isProduction,
-        NODE_ENV: process.env.NODE_ENV
+        NODE_ENV: process.env.NODE_ENV,
+        'About to redirect to': redirectUrl
       });
+      
+      console.log('🚀 REDIRECTING NOW TO:', redirectUrl);
       
       return NextResponse.redirect(redirectUrl);
     } else {

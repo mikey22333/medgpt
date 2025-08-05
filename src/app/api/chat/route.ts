@@ -207,7 +207,7 @@ async function processChatRequest(request: NextRequest, userId: string, supabase
         
         // Call research API with circuit breaker protection
         const researchResponse = await withCircuitBreaker('research-api', async () => {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/research`, {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://clinisynth.onrender.com'}/api/research`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

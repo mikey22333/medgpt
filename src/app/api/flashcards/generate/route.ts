@@ -74,7 +74,7 @@ async function generateFlashcardsWithAI(topic: string, count: number): Promise<F
 
   try {
     // Try to use Together AI or Ollama for generation
-    const response = await fetch(`${process.env.TOGETHER_BASE_URL || 'http://localhost:11434'}/api/generate`, {
+    const response = await fetch(`${process.env.TOGETHER_BASE_URL || 'https://api.together.xyz'}/api/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
