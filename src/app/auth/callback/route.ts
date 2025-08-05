@@ -4,6 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
+  const error = searchParams.get('error');
+  const errorDescription = searchParams.get('error_description');
+  
   let redirectedFrom = searchParams.get('redirectedFrom') || '/chat'; // Default to /chat instead of /
 
   // URL decode the redirectedFrom parameter if it's encoded
@@ -19,8 +22,10 @@ export async function GET(request: NextRequest) {
     redirectedFrom = '/' + redirectedFrom;
   }
 
-  console.log('Auth callback initial params:', { 
+  console.log('🔍 Auth callback initial params:', { 
     code: code ? 'present' : 'missing',
+    error: error || 'none',
+    errorDescription: errorDescription || 'none',
     redirectedFrom,
     searchParams: Object.fromEntries(searchParams),
     origin,
@@ -32,6 +37,12 @@ export async function GET(request: NextRequest) {
       referer: request.headers.get('referer')
     }
   });
+
+  // Handle OAuth errors
+  if (error) {
+    console.error('🚨 OAuth error received:', { error, errorDescription });
+    return NextResponse.redirect(`${origin}/auth/auth-code-error?error=${encodeURIComponent(error)}&description=${encodeURIComponent(errorDescription || '')}`);
+  }
 
   if (code) {
     const supabase = await createClient();

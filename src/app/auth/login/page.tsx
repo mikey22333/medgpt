@@ -137,9 +137,9 @@ function LoginPageContent() {
         'NODE_ENV': process.env.NODE_ENV
       });
       
-      // BYPASS SUPABASE CLIENT - Direct redirect to Google OAuth
+      // BYPASS SUPABASE CLIENT - Direct redirect to Google OAuth with correct flow
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const directGoogleAuthUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}`;
+      const directGoogleAuthUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUrl)}&flow_type=pkce`;
       
       console.log('🚀 Direct OAuth URL:', directGoogleAuthUrl);
       console.log('🎯 Expected final redirect after auth:', redirectUrl);
